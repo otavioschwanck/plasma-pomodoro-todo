@@ -1,0 +1,160 @@
+# Brazilian Portuguese translation for Pomodoro Todo
+# Copyright (C) 2024
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: pt_BR\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# Timer modes
+msgid "Focus"
+msgstr "Foco"
+
+msgid "Short Break"
+msgstr "Pausa Curta"
+
+msgid "Long Break"
+msgstr "Pausa Longa"
+
+# Timer buttons
+msgid "Start"
+msgstr "Iniciar"
+
+msgid "Pause"
+msgstr "Pausar"
+
+msgid "Reset Current"
+msgstr "Reiniciar Atual"
+
+msgid "Reset this step's timer"
+msgstr "Reinicia o timer desta etapa"
+
+msgid "Skip"
+msgstr "Pular"
+
+msgid "Skip to next step"
+msgstr "Pular para a próxima etapa"
+
+msgid "Reset All"
+msgstr "Reiniciar Tudo"
+
+msgid "Reset timer and all sessions"
+msgstr "Reinicia o timer e todas as sessões"
+
+# Tasks section
+msgid "Tasks"
+msgstr "Tarefas"
+
+msgid "Clear all tasks"
+msgstr "Limpar todas as tarefas"
+
+msgid "Clear All Tasks"
+msgstr "Limpar Todas as Tarefas"
+
+msgid "Clear all tasks?"
+msgstr "Limpar todas as tarefas?"
+
+msgid "This will permanently remove %1 task."
+msgid_plural "This will permanently remove %1 tasks."
+msgstr[0] "Isso removerá permanentemente %1 tarefa."
+msgstr[1] "Isso removerá permanentemente %1 tarefas."
+
+msgid "Clear all"
+msgstr "Limpar tudo"
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "Add a task…"
+msgstr "Adicionar uma tarefa…"
+
+msgid "Add"
+msgstr "Adicionar"
+
+# TodoItem
+msgid "Expand"
+msgstr "Expandir"
+
+msgid "Collapse"
+msgstr "Recolher"
+
+msgid "Remove task"
+msgstr "Remover tarefa"
+
+msgid "Add a description…"
+msgstr "Adicionar uma descrição…"
+
+# Notifications
+msgid "Focus session done! Time for a break."
+msgstr "Sessão de foco concluída! Hora de descansar."
+
+msgid "Break over. Back to work!"
+msgstr "Pausa encerrada. De volta ao trabalho!"
+
+# Config — Timer
+msgid "Focus duration (minutes):"
+msgstr "Duração do foco (minutos):"
+
+msgid "Short break (minutes):"
+msgstr "Pausa curta (minutos):"
+
+msgid "Long break (minutes):"
+msgstr "Pausa longa (minutos):"
+
+msgid "Long break after every 4 focus sessions."
+msgstr "Pausa longa após cada 4 sessões de foco."
+
+# Config — Appearance
+msgid "Appearance"
+msgstr "Aparência"
+
+msgid "Focus color:"
+msgstr "Cor do foco:"
+
+msgid "Break color:"
+msgstr "Cor da pausa:"
+
+msgid "Tray icon:"
+msgstr "Ícone da bandeja:"
+
+msgid "Choose…"
+msgstr "Escolher…"
+
+msgid "Show in panel:"
+msgstr "Exibir no painel:"
+
+msgid "Icon + timer when running"
+msgstr "Ícone + timer ao rodar"
+
+msgid "Icon only"
+msgstr "Somente ícone"
+
+msgid "Timer only when running"
+msgstr "Somente timer ao rodar"
+
+# Config — Notifications
+msgid "Notifications"
+msgstr "Notificações"
+
+msgid "Notify on timer end:"
+msgstr "Notificar ao fim do timer:"
+
+msgid "Send desktop notification when timer ends"
+msgstr "Enviar notificação ao fim do timer"
+
+# Tray icon labels
+msgid "Tray Icons"
+msgstr "Ícones da Bandeja"
+
+msgid "Focus:"
+msgstr "Foco:"
+
+msgid "Paused / idle:"
+msgstr "Pausado / inativo:"
+
+msgid "Short break:"
+msgstr "Pausa curta:"
+
+msgid "Long break:"
+msgstr "Pausa longa:"

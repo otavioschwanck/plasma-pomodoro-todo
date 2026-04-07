@@ -13,7 +13,7 @@ PlasmoidItem {
     property int remainingSeconds: plasmoid.configuration.pomodoroMinutes * 60
     property bool isRunning: false
     property int sessionCount: 0
-    property string timerMode: "work"   // "work" | "shortBreak" | "longBreak"
+    property string timerMode: "work"
     property int doneCount: 0
 
     function formatTime(secs) {
@@ -23,9 +23,9 @@ PlasmoidItem {
     }
 
     function modeLabel() {
-        if (timerMode === "work")       return "Focus"
-        if (timerMode === "shortBreak") return "Short Break"
-        return "Long Break"
+        if (timerMode === "work")       return i18n("Focus")
+        if (timerMode === "shortBreak") return i18n("Short Break")
+        return i18n("Long Break")
     }
 
     function modeColor() {
@@ -67,6 +67,13 @@ PlasmoidItem {
         remainingSeconds = modeDuration()
     }
 
+    function currentIcon() {
+        if (!root.isRunning)               return plasmoid.configuration.pausedIcon     || "media-playback-pause"
+        if (root.timerMode === "shortBreak") return plasmoid.configuration.shortBreakIcon || "appointment-new"
+        if (root.timerMode === "longBreak")  return plasmoid.configuration.longBreakIcon  || "appointment-new"
+        return plasmoid.configuration.focusIcon || "appointment-new"
+    }
+
     function clearAllTasks() {
         taskModel.clear()
         saveTasks()
@@ -89,30 +96,32 @@ PlasmoidItem {
     }
 
     // ─── Context menu (right-click on tray) ──────────────────────────────────
+    // In Plasma 6 the action_* naming convention no longer works;
+    // connect .triggered signals explicitly instead.
     Component.onCompleted: {
         loadTasks()
-        plasmoid.setAction("startPause",    "Start",           "media-playback-start")
-        plasmoid.setAction("resetCurrent",  "Reset Current",   "media-playback-stop")
-        plasmoid.setAction("resetAll",      "Reset All",       "view-refresh")
-        plasmoid.setAction("skip",          "Skip",            "media-skip-forward")
-        plasmoid.setAction("clearAllTasks", "Clear All Tasks", "edit-clear-all")
+
+        plasmoid.setAction("startPause",    i18n("Start"),           "media-playback-start")
+        plasmoid.setAction("resetCurrent",  i18n("Reset Current"),   "media-playback-stop")
+        plasmoid.setAction("resetAll",      i18n("Reset All"),       "view-refresh")
+        plasmoid.setAction("skip",          i18n("Skip"),            "media-skip-forward")
+        plasmoid.setAction("clearAllTasks", i18n("Clear All Tasks"), "edit-clear-all")
+
+        plasmoid.action("startPause").triggered.connect(function()    { root.isRunning ? root.pauseTimer() : root.startTimer() })
+        plasmoid.action("resetCurrent").triggered.connect(function()  { root.resetCurrent() })
+        plasmoid.action("resetAll").triggered.connect(function()      { root.resetAll() })
+        plasmoid.action("skip").triggered.connect(function()          { root.pauseTimer(); root.advanceMode() })
+        plasmoid.action("clearAllTasks").triggered.connect(function() { root.clearAllTasks() })
     }
 
     onIsRunningChanged: {
         var act = plasmoid.action("startPause")
         if (act) {
-            act.text      = isRunning ? "Pause" : "Start"
+            act.text      = isRunning ? i18n("Pause") : i18n("Start")
             act.icon.name = isRunning ? "media-playback-pause" : "media-playback-start"
         }
     }
 
-    function action_startPause()    { isRunning ? pauseTimer() : startTimer() }
-    function action_resetCurrent()  { resetCurrent() }
-    function action_resetAll()      { resetAll() }
-    function action_skip()          { pauseTimer(); advanceMode() }
-    function action_clearAllTasks() { clearAllTasks() }
-
-    // Re-sync duration if config changes while idle
     Connections {
         target: plasmoid.configuration
         function onPomodoroMinutesChanged()   { if (!root.isRunning && root.timerMode === "work")       root.remainingSeconds = root.modeDuration() }
@@ -130,10 +139,9 @@ PlasmoidItem {
             } else {
                 stop()
                 root.isRunning = false
-                // Notify with current mode (before advance)
                 var msg = root.timerMode === "work"
-                          ? "Focus session done! Time for a break."
-                          : "Break over. Back to work!"
+                          ? i18n("Focus session done! Time for a break.")
+                          : i18n("Break over. Back to work!")
                 root.sendNotification("Pomodoro", msg)
                 root.advanceMode()
             }
@@ -188,18 +196,37 @@ PlasmoidItem {
 
     // ─── Compact representation (panel) ──────────────────────────────────────
     compactRepresentation: Item {
-        // Width: enough for content + horizontal breathing room
-        readonly property string mode: plasmoid.configuration.trayDisplayMode
-        readonly property bool showTimer: root.isRunning && mode !== "iconOnly"
-        readonly property bool showIcon:  !root.isRunning || mode !== "timerOnly"
+        id: compactRoot
 
-        implicitWidth: {
-            var w = 0
-            if (showIcon)  w += Kirigami.Units.iconSizes.medium
-            if (showIcon && showTimer) w += Kirigami.Units.smallSpacing
-            if (showTimer) w += timerLabel.implicitWidth + 4  // dot + spacing
-            return w + Kirigami.Units.smallSpacing * 2
+        readonly property string displayMode: plasmoid.configuration.trayDisplayMode
+        readonly property bool showTimer: root.isRunning && displayMode !== "iconOnly"
+        readonly property bool showIcon:  !root.isRunning || displayMode !== "timerOnly"
+
+        // TextMetrics gives a stable measurement independent of layout timing.
+        TextMetrics {
+            id: timerMetrics
+            font.pixelSize: Math.round(Kirigami.Units.gridUnit * 0.9)
+            font.bold: true
+            text: "00:00"
         }
+
+        readonly property real _pad:   Kirigami.Units.smallSpacing * 2
+        readonly property real _icon:  Kirigami.Units.iconSizes.medium
+        readonly property real _dot:   6 + Kirigami.Units.smallSpacing / 2
+        readonly property real _timer: timerMetrics.advanceWidth
+
+        // Width changes dynamically: idle = icon only, running = icon + dot + timer
+        readonly property real desiredWidth: {
+            if (displayMode === "iconOnly")  return _icon + _pad
+            if (displayMode === "timerOnly") return (showTimer ? _timer : _icon) + _pad
+            // iconAndTimer
+            return showTimer ? (_icon + _dot + _timer + _pad) : (_icon + _pad)
+        }
+
+        implicitWidth:        desiredWidth
+        Layout.minimumWidth:  desiredWidth
+        Layout.preferredWidth: desiredWidth
+        Layout.maximumWidth:  desiredWidth
 
         MouseArea {
             anchors.fill: parent
@@ -211,26 +238,27 @@ PlasmoidItem {
             spacing: Kirigami.Units.smallSpacing / 2
 
             Kirigami.Icon {
-                visible: parent.parent.showIcon
-                source: plasmoid.configuration.trayIcon || "appointment-new"
+                visible: compactRoot.showIcon
+                source: root.currentIcon()
                 Layout.preferredWidth:  Kirigami.Units.iconSizes.medium
                 Layout.preferredHeight: Kirigami.Units.iconSizes.medium
+                Layout.alignment: Qt.AlignVCenter
             }
 
-            // Colored dot (only shown alongside icon)
             Rectangle {
-                visible: parent.parent.showTimer && parent.parent.showIcon
+                visible: compactRoot.showTimer && compactRoot.showIcon
                 width: 6; height: 6; radius: 3
                 color: root.modeColor()
+                Layout.alignment: Qt.AlignVCenter
             }
 
             PlasmaComponents3.Label {
-                id: timerLabel
-                visible: parent.parent.showTimer
+                visible: compactRoot.showTimer
                 text: root.formatTime(root.remainingSeconds)
                 color: root.modeColor()
                 font.bold: true
                 font.pixelSize: Math.round(Kirigami.Units.gridUnit * 0.9)
+                Layout.alignment: Qt.AlignVCenter
             }
         }
     }
@@ -293,26 +321,26 @@ PlasmoidItem {
                 spacing: Kirigami.Units.smallSpacing
 
                 PlasmaComponents3.Button {
-                    text: "Reset Current"
+                    text: i18n("Reset Current")
                     icon.name: "media-playback-stop"
                     onClicked: root.resetCurrent()
-                    QQC2.ToolTip.text: "Reset this step's timer"
+                    QQC2.ToolTip.text: i18n("Reset this step's timer")
                     QQC2.ToolTip.visible: hovered
                     QQC2.ToolTip.delay: 800
                 }
 
                 PlasmaComponents3.Button {
-                    text: root.isRunning ? "Pause" : "Start"
+                    text: root.isRunning ? i18n("Pause") : i18n("Start")
                     icon.name: root.isRunning ? "media-playback-pause" : "media-playback-start"
                     highlighted: true
                     onClicked: root.isRunning ? root.pauseTimer() : root.startTimer()
                 }
 
                 PlasmaComponents3.Button {
-                    text: "Skip"
+                    text: i18n("Skip")
                     icon.name: "media-skip-forward"
                     onClicked: { root.pauseTimer(); root.advanceMode() }
-                    QQC2.ToolTip.text: "Skip to next step"
+                    QQC2.ToolTip.text: i18n("Skip to next step")
                     QQC2.ToolTip.visible: hovered
                     QQC2.ToolTip.delay: 800
                 }
@@ -323,10 +351,10 @@ PlasmoidItem {
                 Layout.bottomMargin: Kirigami.Units.smallSpacing
 
                 PlasmaComponents3.Button {
-                    text: "Reset All"
+                    text: i18n("Reset All")
                     icon.name: "view-refresh"
                     onClicked: root.resetAll()
-                    QQC2.ToolTip.text: "Reset timer and all sessions"
+                    QQC2.ToolTip.text: i18n("Reset timer and all sessions")
                     QQC2.ToolTip.visible: hovered
                     QQC2.ToolTip.delay: 800
                 }
@@ -345,7 +373,7 @@ PlasmoidItem {
                 Layout.fillWidth: true
 
                 PlasmaComponents3.Label {
-                    text: "Tasks"
+                    text: i18n("Tasks")
                     font.bold: true
                 }
 
@@ -361,7 +389,7 @@ PlasmoidItem {
                     icon.name: "edit-clear-all"
                     visible: taskModel.count > 0
                     onClicked: clearConfirmDialog.open()
-                    QQC2.ToolTip.text: "Clear all tasks"
+                    QQC2.ToolTip.text: i18n("Clear all tasks")
                     QQC2.ToolTip.visible: hovered
                     QQC2.ToolTip.delay: 600
                 }
@@ -369,24 +397,26 @@ PlasmoidItem {
 
             QQC2.Dialog {
                 id: clearConfirmDialog
-                title: "Clear all tasks?"
+                title: i18n("Clear all tasks?")
                 modal: true
                 anchors.centerIn: parent
 
                 contentItem: PlasmaComponents3.Label {
-                    text: "This will permanently remove all " + taskModel.count + " task(s)."
+                    text: i18np("This will permanently remove %1 task.",
+                                "This will permanently remove %1 tasks.",
+                                taskModel.count)
                     wrapMode: Text.WordWrap
                     padding: Kirigami.Units.largeSpacing
                 }
 
                 footer: QQC2.DialogButtonBox {
                     QQC2.Button {
-                        text: "Clear all"
+                        text: i18n("Clear all")
                         QQC2.DialogButtonBox.buttonRole: QQC2.DialogButtonBox.DestructiveRole
                         onClicked: { root.clearAllTasks(); clearConfirmDialog.close() }
                     }
                     QQC2.Button {
-                        text: "Cancel"
+                        text: i18n("Cancel")
                         QQC2.DialogButtonBox.buttonRole: QQC2.DialogButtonBox.RejectRole
                         onClicked: clearConfirmDialog.close()
                     }
@@ -442,12 +472,12 @@ PlasmoidItem {
                 PlasmaComponents3.TextField {
                     id: newTaskField
                     Layout.fillWidth: true
-                    placeholderText: "Add a task…"
+                    placeholderText: i18n("Add a task…")
                     onAccepted: { if (root.addTask(text)) text = "" }
                 }
 
                 PlasmaComponents3.Button {
-                    text: "Add"
+                    text: i18n("Add")
                     icon.name: "list-add"
                     enabled: newTaskField.text.trim().length > 0
                     onClicked: { if (root.addTask(newTaskField.text)) newTaskField.text = "" }

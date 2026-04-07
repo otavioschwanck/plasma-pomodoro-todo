@@ -1,0 +1,159 @@
+# Simplified Chinese translation for Pomodoro Todo
+# Copyright (C) 2024
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# Timer modes
+msgid "Focus"
+msgstr "专注"
+
+msgid "Short Break"
+msgstr "短休"
+
+msgid "Long Break"
+msgstr "长休"
+
+# Timer buttons
+msgid "Start"
+msgstr "开始"
+
+msgid "Pause"
+msgstr "暂停"
+
+msgid "Reset Current"
+msgstr "重置当前"
+
+msgid "Reset this step's timer"
+msgstr "重置此阶段的计时器"
+
+msgid "Skip"
+msgstr "跳过"
+
+msgid "Skip to next step"
+msgstr "跳到下一阶段"
+
+msgid "Reset All"
+msgstr "全部重置"
+
+msgid "Reset timer and all sessions"
+msgstr "重置计时器及所有会话"
+
+# Tasks section
+msgid "Tasks"
+msgstr "任务"
+
+msgid "Clear all tasks"
+msgstr "清除所有任务"
+
+msgid "Clear All Tasks"
+msgstr "清除所有任务"
+
+msgid "Clear all tasks?"
+msgstr "清除所有任务？"
+
+msgid "This will permanently remove %1 task."
+msgid_plural "This will permanently remove %1 tasks."
+msgstr[0] "这将永久删除全部 %1 个任务。"
+
+msgid "Clear all"
+msgstr "全部清除"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Add a task…"
+msgstr "添加任务…"
+
+msgid "Add"
+msgstr "添加"
+
+# TodoItem
+msgid "Expand"
+msgstr "展开"
+
+msgid "Collapse"
+msgstr "收起"
+
+msgid "Remove task"
+msgstr "删除任务"
+
+msgid "Add a description…"
+msgstr "添加描述…"
+
+# Notifications
+msgid "Focus session done! Time for a break."
+msgstr "专注完成！休息一下吧。"
+
+msgid "Break over. Back to work!"
+msgstr "休息结束，继续工作！"
+
+# Config — Timer
+msgid "Focus duration (minutes):"
+msgstr "专注时长（分钟）："
+
+msgid "Short break (minutes):"
+msgstr "短休时长（分钟）："
+
+msgid "Long break (minutes):"
+msgstr "长休时长（分钟）："
+
+msgid "Long break after every 4 focus sessions."
+msgstr "每 4 个专注会话后进行长休。"
+
+# Config — Appearance
+msgid "Appearance"
+msgstr "外观"
+
+msgid "Focus color:"
+msgstr "专注颜色："
+
+msgid "Break color:"
+msgstr "休息颜色："
+
+msgid "Tray icon:"
+msgstr "托盘图标："
+
+msgid "Choose…"
+msgstr "选择…"
+
+msgid "Show in panel:"
+msgstr "在面板显示："
+
+msgid "Icon + timer when running"
+msgstr "运行时显示图标与计时"
+
+msgid "Icon only"
+msgstr "仅显示图标"
+
+msgid "Timer only when running"
+msgstr "运行时仅显示计时"
+
+# Config — Notifications
+msgid "Notifications"
+msgstr "通知"
+
+msgid "Notify on timer end:"
+msgstr "计时结束时通知："
+
+msgid "Send desktop notification when timer ends"
+msgstr "计时结束时发送桌面通知"
+
+# Tray icon labels
+msgid "Tray Icons"
+msgstr "托盘图标"
+
+msgid "Focus:"
+msgstr "专注："
+
+msgid "Paused / idle:"
+msgstr "暂停/空闲："
+
+msgid "Short break:"
+msgstr "短休："
+
+msgid "Long break:"
+msgstr "长休："

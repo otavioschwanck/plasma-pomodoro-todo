@@ -49,7 +49,7 @@ Item {
                 implicitWidth: Kirigami.Units.iconSizes.small + Kirigami.Units.smallSpacing * 2
                 implicitHeight: implicitWidth
                 onClicked: root.toggleExpanded()
-                QQC2.ToolTip.text: taskExpanded ? "Collapse" : "Expand"
+                QQC2.ToolTip.text: taskExpanded ? i18n("Collapse") : i18n("Expand")
                 QQC2.ToolTip.visible: hovered
             }
 
@@ -59,7 +59,7 @@ Item {
                 implicitWidth: Kirigami.Units.iconSizes.small + Kirigami.Units.smallSpacing * 2
                 implicitHeight: implicitWidth
                 onClicked: root.removeRequested()
-                QQC2.ToolTip.text: "Remove task"
+                QQC2.ToolTip.text: i18n("Remove task")
                 QQC2.ToolTip.visible: hovered
             }
         }
@@ -72,11 +72,10 @@ Item {
             Layout.bottomMargin: Kirigami.Units.smallSpacing
             visible: taskExpanded
             text: taskDescription
-            placeholderText: "Add a description…"
+            placeholderText: i18n("Add a description…")
             wrapMode: TextEdit.WordWrap
             implicitHeight: taskExpanded ? Math.max(Kirigami.Units.gridUnit * 4, contentHeight + topPadding + bottomPadding) : 0
 
-            // Debounce saves so we don't write on every keystroke
             onTextChanged: saveDebounce.restart()
 
             Timer {
