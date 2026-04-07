@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+      http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+  <group name="General">
+    <entry name="tasks" type="String">
+      <default>[]</default>
+    </entry>
+    <entry name="pomodoroMinutes" type="Int">
+      <default>25</default>
+    </entry>
+    <entry name="shortBreakMinutes" type="Int">
+      <default>5</default>
+    </entry>
+    <entry name="longBreakMinutes" type="Int">
+      <default>15</default>
+    </entry>
+    <entry name="trayIcon" type="String">
+      <default>appointment-new</default>
+    </entry>
+    <entry name="focusColor" type="String">
+      <default>#e74c3c</default>
+    </entry>
+    <entry name="breakColor" type="String">
+      <default>#27ae60</default>
+    </entry>
+    <entry name="trayDisplayMode" type="String">
+      <default>iconAndTimer</default>
+    </entry>
+    <entry name="notificationsEnabled" type="Bool">
+      <default>true</default>
+    </entry>
+  </group>
+</kcfg>

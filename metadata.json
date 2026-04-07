@@ -1,0 +1,19 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "",
+                "Name": "Otavio"
+            }
+        ],
+        "Category": "Utilities",
+        "Description": "Pomodoro timer combined with a todo list",
+        "Icon": "appointment-new",
+        "Id": "com.github.pomodoro-todo",
+        "License": "GPL-2.0-or-later",
+        "Name": "Pomodoro Todo",
+        "Version": "1.0",
+        "Website": ""
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
