@@ -306,7 +306,13 @@ PlasmoidItem {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: root.expanded = !root.expanded
+            acceptedButtons: Qt.LeftButton | Qt.MiddleButton
+            onClicked: function(mouse) {
+                if (mouse.button === Qt.MiddleButton)
+                    root.isRunning ? root.pauseTimer() : root.startTimer()
+                else
+                    root.expanded = !root.expanded
+            }
         }
 
         RowLayout {
