@@ -16,6 +16,10 @@ PlasmoidItem {
     property string timerMode: "work"
     property int doneCount: 0
 
+    // ─── Workspace / task state ───────────────────────────────────────────────
+    property int currentWorkspace: 0
+    property var workspacesData: []
+
     function formatTime(secs) {
         var m = Math.floor(secs / 60)
         var s = secs % 60
@@ -68,7 +72,7 @@ PlasmoidItem {
     }
 
     function currentIcon() {
-        if (!root.isRunning)               return plasmoid.configuration.pausedIcon     || "media-playback-pause"
+        if (!root.isRunning)                 return plasmoid.configuration.pausedIcon     || "media-playback-pause"
         if (root.timerMode === "shortBreak") return plasmoid.configuration.shortBreakIcon || "appointment-new"
         if (root.timerMode === "longBreak")  return plasmoid.configuration.longBreakIcon  || "appointment-new"
         return plasmoid.configuration.focusIcon || "appointment-new"
@@ -96,8 +100,6 @@ PlasmoidItem {
     }
 
     // ─── Context menu (right-click on tray) ──────────────────────────────────
-    // In Plasma 6 the action_* naming convention no longer works;
-    // connect .triggered signals explicitly instead.
     Component.onCompleted: {
         loadTasks()
 
@@ -144,6 +146,7 @@ PlasmoidItem {
                           : i18n("Break over. Back to work!")
                 root.sendNotification("Pomodoro", msg)
                 root.advanceMode()
+                if (plasmoid.configuration.autoStartNext) root.startTimer()
             }
         }
     }
@@ -158,40 +161,114 @@ PlasmoidItem {
         doneCount = n
     }
 
+    // Populate taskModel from workspacesData[currentWorkspace]
+    function reloadTaskModel() {
+        taskModel.clear()
+        var ws = workspacesData[currentWorkspace]
+        if (!ws) return
+        ;(ws.tasks || []).forEach(function(t) {
+            taskModel.append({
+                title:       t.title       || "",
+                description: t.description || "",
+                done:        t.done        || false,
+                expanded:    false,
+                editDesc:    false
+            })
+        })
+    }
+
+    // Sync taskModel → workspacesData[currentWorkspace] (deep-copy to trigger bindings)
+    function syncCurrentWorkspace() {
+        if (workspacesData.length === 0) return
+        var tasks = []
+        for (var i = 0; i < taskModel.count; i++) {
+            var t = taskModel.get(i)
+            tasks.push({ title: t.title, description: t.description, done: t.done })
+        }
+        var copy = JSON.parse(JSON.stringify(workspacesData))
+        copy[currentWorkspace].tasks = tasks
+        workspacesData = copy
+    }
+
     function loadTasks() {
         try {
-            var arr = JSON.parse(plasmoid.configuration.tasks)
-            taskModel.clear()
-            arr.forEach(function(t) {
-                taskModel.append({
-                    title:       t.title       || "",
-                    description: t.description || "",
-                    done:        t.done        || false,
-                    expanded:    false
-                })
-            })
+            var raw = JSON.parse(plasmoid.configuration.tasks)
+            if (Array.isArray(raw) && raw.length > 0) {
+                // New format: [{name, tasks}, ...]  vs old format: [{title, done}, ...]
+                if (raw[0].hasOwnProperty('name') && raw[0].hasOwnProperty('tasks')) {
+                    workspacesData = raw
+                } else {
+                    // Migrate old flat task list into a single default workspace
+                    workspacesData = [{ name: "Default", tasks: raw }]
+                }
+            } else {
+                workspacesData = [{ name: "Default", tasks: [] }]
+            }
         } catch(e) {
-            taskModel.clear()
+            workspacesData = [{ name: "Default", tasks: [] }]
         }
+        currentWorkspace = 0
+        reloadTaskModel()
         updateDoneCount()
     }
 
     function saveTasks() {
-        var arr = []
-        for (var i = 0; i < taskModel.count; i++) {
-            var t = taskModel.get(i)
-            arr.push({ title: t.title, description: t.description, done: t.done })
-        }
-        plasmoid.configuration.tasks = JSON.stringify(arr)
+        syncCurrentWorkspace()
+        plasmoid.configuration.tasks = JSON.stringify(workspacesData)
         updateDoneCount()
     }
 
     function addTask(title) {
         title = (title || "").trim()
         if (title.length === 0) return false
-        taskModel.append({ title: title, description: "", done: false, expanded: false })
+        var autoExpand = plasmoid.configuration.autoExpandNewTask
+        taskModel.append({
+            title:       title,
+            description: "",
+            done:        false,
+            expanded:    autoExpand,
+            editDesc:    autoExpand
+        })
         saveTasks()
         return true
+    }
+
+    function switchWorkspace(index) {
+        if (index === currentWorkspace) return
+        saveTasks()
+        currentWorkspace = index
+        reloadTaskModel()
+        updateDoneCount()
+    }
+
+    function addWorkspace(name) {
+        saveTasks()
+        var copy = JSON.parse(JSON.stringify(workspacesData))
+        copy.push({ name: name.trim(), tasks: [] })
+        workspacesData = copy
+        currentWorkspace = copy.length - 1
+        taskModel.clear()
+        plasmoid.configuration.tasks = JSON.stringify(workspacesData)
+        updateDoneCount()
+    }
+
+    function renameWorkspace(index, newName) {
+        saveTasks()
+        var copy = JSON.parse(JSON.stringify(workspacesData))
+        copy[index].name = newName.trim()
+        workspacesData = copy
+        plasmoid.configuration.tasks = JSON.stringify(workspacesData)
+    }
+
+    function removeWorkspace(index) {
+        if (workspacesData.length <= 1) return
+        var copy = JSON.parse(JSON.stringify(workspacesData))
+        copy.splice(index, 1)
+        workspacesData = copy
+        currentWorkspace = Math.min(currentWorkspace, copy.length - 1)
+        reloadTaskModel()
+        plasmoid.configuration.tasks = JSON.stringify(workspacesData)
+        updateDoneCount()
     }
 
     // ─── Compact representation (panel) ──────────────────────────────────────
@@ -202,7 +279,6 @@ PlasmoidItem {
         readonly property bool showTimer: root.isRunning && displayMode !== "iconOnly"
         readonly property bool showIcon:  !root.isRunning || displayMode !== "timerOnly"
 
-        // TextMetrics gives a stable measurement independent of layout timing.
         TextMetrics {
             id: timerMetrics
             font.pixelSize: Math.round(Kirigami.Units.gridUnit * 0.9)
@@ -215,18 +291,16 @@ PlasmoidItem {
         readonly property real _dot:   6 + Kirigami.Units.smallSpacing / 2
         readonly property real _timer: timerMetrics.advanceWidth
 
-        // Width changes dynamically: idle = icon only, running = icon + dot + timer
         readonly property real desiredWidth: {
             if (displayMode === "iconOnly")  return _icon + _pad
             if (displayMode === "timerOnly") return (showTimer ? _timer : _icon) + _pad
-            // iconAndTimer
             return showTimer ? (_icon + _dot + _timer + _pad) : (_icon + _pad)
         }
 
-        implicitWidth:        desiredWidth
-        Layout.minimumWidth:  desiredWidth
+        implicitWidth:         desiredWidth
+        Layout.minimumWidth:   desiredWidth
         Layout.preferredWidth: desiredWidth
-        Layout.maximumWidth:  desiredWidth
+        Layout.maximumWidth:   desiredWidth
 
         MouseArea {
             anchors.fill: parent
@@ -273,6 +347,29 @@ PlasmoidItem {
             target: root
             function onExpandedChanged() {
                 if (root.expanded) Qt.callLater(function() { newTaskField.forceActiveFocus() })
+            }
+        }
+
+        // ── Pin button row ────────────────────────────────────────────────────
+        Item {
+            Layout.fillWidth: true
+            implicitHeight: pinBtn.implicitHeight + Kirigami.Units.smallSpacing
+
+            PlasmaComponents3.ToolButton {
+                id: pinBtn
+                anchors.right: parent.right
+                anchors.rightMargin: Kirigami.Units.smallSpacing
+                anchors.verticalCenter: parent.verticalCenter
+                icon.name: "window-pin"
+                flat: true
+                checkable: true
+                // Initial state from property; binding breaks after first toggle —
+                // that's fine because onToggled keeps the source in sync.
+                checked: !root.hideOnWindowDeactivate
+                onToggled: root.hideOnWindowDeactivate = !checked
+                QQC2.ToolTip.text: checked ? i18n("Auto-close") : i18n("Keep open")
+                QQC2.ToolTip.visible: hovered
+                QQC2.ToolTip.delay: 600
             }
         }
 
@@ -369,6 +466,7 @@ PlasmoidItem {
             Layout.margins: Kirigami.Units.largeSpacing
             spacing: Kirigami.Units.smallSpacing
 
+            // ── Header row ────────────────────────────────────────────────
             RowLayout {
                 Layout.fillWidth: true
 
@@ -394,6 +492,146 @@ PlasmoidItem {
                     QQC2.ToolTip.delay: 600
                 }
             }
+
+            // ── Workspace tab bar ─────────────────────────────────────────
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 0
+
+                // Scrollable tab strip
+                QQC2.ScrollView {
+                    Layout.fillWidth: true
+                    implicitHeight: wsTabRow.implicitHeight
+                    QQC2.ScrollBar.vertical.policy:   QQC2.ScrollBar.AlwaysOff
+                    QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AsNeeded
+                    clip: true
+
+                    Row {
+                        id: wsTabRow
+                        spacing: 2
+
+                        Repeater {
+                            model: root.workspacesData.length
+
+                            delegate: Item {
+                                id: wsTabDelegate
+                                readonly property bool isActive: index === root.currentWorkspace
+                                property bool editingName: false
+
+                                // Fixed height across all tabs so the Row stays on one line
+                                implicitHeight: Kirigami.Units.iconSizes.small
+                                                + Kirigami.Units.smallSpacing * 4
+                                implicitWidth:  tabInner.implicitWidth + Kirigami.Units.smallSpacing * 2
+
+                                // Active underline indicator
+                                Rectangle {
+                                    anchors.bottom: parent.bottom
+                                    anchors.left:   parent.left
+                                    anchors.right:  parent.right
+                                    height: 2
+                                    radius: 1
+                                    color: Kirigami.Theme.highlightColor
+                                    visible: wsTabDelegate.isActive
+                                }
+
+                                RowLayout {
+                                    id: tabInner
+                                    anchors.centerIn: parent
+                                    spacing: 2
+
+                                    // Workspace name label
+                                    PlasmaComponents3.Label {
+                                        visible: !wsTabDelegate.editingName
+                                        text: root.workspacesData[index]
+                                              ? root.workspacesData[index].name : ""
+                                        color: wsTabDelegate.isActive
+                                               ? Kirigami.Theme.highlightColor
+                                               : Kirigami.Theme.textColor
+                                        font.bold: wsTabDelegate.isActive
+                                    }
+
+                                    // Inline rename TextField
+                                    PlasmaComponents3.TextField {
+                                        id: wsNameField
+                                        visible: wsTabDelegate.editingName
+                                        text: root.workspacesData[index]
+                                              ? root.workspacesData[index].name : ""
+                                        implicitWidth: Math.max(
+                                            Kirigami.Units.gridUnit * 5,
+                                            contentWidth + leftPadding + rightPadding + 8
+                                        )
+                                        Keys.onReturnPressed: wsNameField.commitRename()
+                                        Keys.onEscapePressed: wsTabDelegate.editingName = false
+                                        onActiveFocusChanged: {
+                                            if (!activeFocus && wsTabDelegate.editingName)
+                                                wsNameField.commitRename()
+                                        }
+                                        function commitRename() {
+                                            var t = text.trim()
+                                            if (t.length > 0) root.renameWorkspace(index, t)
+                                            wsTabDelegate.editingName = false
+                                        }
+                                    }
+
+                                    // Pencil: rename (active, not editing)
+                                    PlasmaComponents3.ToolButton {
+                                        visible: wsTabDelegate.isActive && !wsTabDelegate.editingName
+                                        flat: true
+                                        icon.name: "document-edit"
+                                        implicitWidth:  Kirigami.Units.iconSizes.small + Kirigami.Units.smallSpacing * 2
+                                        implicitHeight: implicitWidth
+                                        onClicked: {
+                                            wsTabDelegate.editingName = true
+                                            Qt.callLater(function() {
+                                                wsNameField.forceActiveFocus()
+                                                wsNameField.selectAll()
+                                            })
+                                        }
+                                        QQC2.ToolTip.text: i18n("Rename workspace")
+                                        QQC2.ToolTip.visible: hovered
+                                    }
+
+                                    // Trash: delete (active, >1 workspace, not editing)
+                                    PlasmaComponents3.ToolButton {
+                                        visible: wsTabDelegate.isActive
+                                                 && root.workspacesData.length > 1
+                                                 && !wsTabDelegate.editingName
+                                        flat: true
+                                        icon.name: "edit-delete-remove"
+                                        implicitWidth:  Kirigami.Units.iconSizes.small + Kirigami.Units.smallSpacing * 2
+                                        implicitHeight: implicitWidth
+                                        onClicked: deleteWsDialog.open()
+                                        QQC2.ToolTip.text: i18n("Delete workspace")
+                                        QQC2.ToolTip.visible: hovered
+                                    }
+                                }
+
+                                TapHandler {
+                                    enabled: !wsTabDelegate.isActive
+                                    onTapped: root.switchWorkspace(index)
+                                }
+                                HoverHandler {
+                                    cursorShape: wsTabDelegate.isActive
+                                                 ? Qt.ArrowCursor
+                                                 : Qt.PointingHandCursor
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // "+" button — always visible outside scroll area
+                PlasmaComponents3.ToolButton {
+                    icon.name: "list-add"
+                    flat: true
+                    onClicked: { newWsNameField.text = ""; addWsDialog.open() }
+                    QQC2.ToolTip.text: i18n("New workspace")
+                    QQC2.ToolTip.visible: hovered
+                    QQC2.ToolTip.delay: 600
+                }
+            }
+
+            // ── Dialogs ───────────────────────────────────────────────────
 
             QQC2.Dialog {
                 id: clearConfirmDialog
@@ -423,6 +661,71 @@ PlasmoidItem {
                 }
             }
 
+            QQC2.Dialog {
+                id: addWsDialog
+                title: i18n("New Workspace")
+                modal: true
+                anchors.centerIn: parent
+
+                contentItem: ColumnLayout {
+                    spacing: Kirigami.Units.smallSpacing
+                    PlasmaComponents3.Label { text: i18n("Workspace name:") }
+                    PlasmaComponents3.TextField {
+                        id: newWsNameField
+                        Layout.fillWidth: true
+                        placeholderText: i18n("e.g. Work, Personal…")
+                        Keys.onReturnPressed: {
+                            var n = text.trim()
+                            if (n.length > 0) { root.addWorkspace(n); addWsDialog.close() }
+                        }
+                    }
+                }
+
+                footer: QQC2.DialogButtonBox {
+                    QQC2.Button {
+                        text: i18n("Create")
+                        QQC2.DialogButtonBox.buttonRole: QQC2.DialogButtonBox.AcceptRole
+                        enabled: newWsNameField.text.trim().length > 0
+                        onClicked: { root.addWorkspace(newWsNameField.text.trim()); addWsDialog.close() }
+                    }
+                    QQC2.Button {
+                        text: i18n("Cancel")
+                        QQC2.DialogButtonBox.buttonRole: QQC2.DialogButtonBox.RejectRole
+                        onClicked: addWsDialog.close()
+                    }
+                }
+            }
+
+            QQC2.Dialog {
+                id: deleteWsDialog
+                title: i18n("Delete workspace?")
+                modal: true
+                anchors.centerIn: parent
+
+                contentItem: PlasmaComponents3.Label {
+                    text: root.workspacesData[root.currentWorkspace]
+                          ? i18n("Delete workspace \"%1\" and all its tasks?",
+                                 root.workspacesData[root.currentWorkspace].name)
+                          : ""
+                    wrapMode: Text.WordWrap
+                    padding: Kirigami.Units.largeSpacing
+                }
+
+                footer: QQC2.DialogButtonBox {
+                    QQC2.Button {
+                        text: i18n("Delete")
+                        QQC2.DialogButtonBox.buttonRole: QQC2.DialogButtonBox.DestructiveRole
+                        onClicked: { root.removeWorkspace(root.currentWorkspace); deleteWsDialog.close() }
+                    }
+                    QQC2.Button {
+                        text: i18n("Cancel")
+                        QQC2.DialogButtonBox.buttonRole: QQC2.DialogButtonBox.RejectRole
+                        onClicked: deleteWsDialog.close()
+                    }
+                }
+            }
+
+            // ── Task list ─────────────────────────────────────────────────
             QQC2.ScrollView {
                 id: taskScroll
                 Layout.fillWidth: true
@@ -446,12 +749,27 @@ PlasmoidItem {
                         taskDone:        model.done
                         taskExpanded:    model.expanded
 
+                        // Auto-focus description on newly added tasks when config enabled
+                        Component.onCompleted: {
+                            if (model.editDesc) {
+                                taskModel.setProperty(index, "editDesc", false)
+                                Qt.callLater(function() {
+                                    taskListView.positionViewAtEnd()
+                                    editingDesc = true
+                                })
+                            }
+                        }
+
                         onToggleDone: {
                             taskModel.setProperty(index, "done", !model.done)
                             root.saveTasks()
                         }
                         onToggleExpanded: {
                             taskModel.setProperty(index, "expanded", !model.expanded)
+                        }
+                        onTitleEdited: function(newTitle) {
+                            taskModel.setProperty(index, "title", newTitle)
+                            root.saveTasks()
                         }
                         onDescriptionEdited: function(newDesc) {
                             taskModel.setProperty(index, "description", newDesc)
@@ -465,6 +783,7 @@ PlasmoidItem {
                 }
             }
 
+            // ── Add task row ──────────────────────────────────────────────
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Kirigami.Units.smallSpacing

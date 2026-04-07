@@ -157,3 +157,72 @@ msgstr "短休："
 
 msgid "Long break:"
 msgstr "长休："
+
+msgid "Task title…"
+msgstr "任务标题…"
+
+msgid "Save title"
+msgstr "保存标题"
+
+msgid "Edit title"
+msgstr "编辑标题"
+
+msgid "Keep open"
+msgstr "保持打开"
+
+msgid "Auto-close"
+msgstr "自动关闭"
+
+msgid "Markdown supported · Drag files to attach"
+msgstr "支持 Markdown · 拖入文件以附加"
+
+msgid "Workspace name:"
+msgstr "工作区名称："
+
+msgid "e.g. Work, Personal…"
+msgstr "例：工作、个人…"
+
+msgid "New Workspace"
+msgstr "新工作区"
+
+msgid "Create"
+msgstr "创建"
+
+msgid "New workspace"
+msgstr "新工作区"
+
+msgid "Rename workspace"
+msgstr "重命名工作区"
+
+msgid "Delete workspace"
+msgstr "删除工作区"
+
+msgid "Delete workspace?"
+msgstr "删除工作区？"
+
+msgid "Delete workspace \"%1\" and all its tasks?"
+msgstr "删除工作区\"%1\"及其所有任务？"
+
+msgid "Delete"
+msgstr "删除"
+
+msgid "Add description…"
+msgstr "添加描述…"
+
+msgid "Edit description"
+msgstr "编辑描述"
+
+msgid "Add description"
+msgstr "添加描述"
+
+msgid "Auto-start next timer:"
+msgstr "自动启动下一个计时器："
+
+msgid "Automatically start the next session when one ends"
+msgstr "一个会话结束后自动开始下一个"
+
+msgid "New task behavior:"
+msgstr "新任务行为："
+
+msgid "Expand and focus description when adding a task"
+msgstr "添加任务时展开并聚焦描述"

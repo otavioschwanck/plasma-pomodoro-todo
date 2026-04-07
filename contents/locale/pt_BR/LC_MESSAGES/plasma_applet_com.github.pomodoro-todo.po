@@ -158,3 +158,72 @@ msgstr "Pausa curta:"
 
 msgid "Long break:"
 msgstr "Pausa longa:"
+
+msgid "Task title…"
+msgstr "Título da tarefa…"
+
+msgid "Save title"
+msgstr "Salvar título"
+
+msgid "Edit title"
+msgstr "Editar título"
+
+msgid "Keep open"
+msgstr "Manter aberto"
+
+msgid "Auto-close"
+msgstr "Fechar automaticamente"
+
+msgid "Markdown supported · Drag files to attach"
+msgstr "Markdown suportado · Arraste arquivos para anexar"
+
+msgid "Workspace name:"
+msgstr "Nome do workspace:"
+
+msgid "e.g. Work, Personal…"
+msgstr "Ex: Trabalho, Pessoal…"
+
+msgid "New Workspace"
+msgstr "Novo Workspace"
+
+msgid "Create"
+msgstr "Criar"
+
+msgid "New workspace"
+msgstr "Novo workspace"
+
+msgid "Rename workspace"
+msgstr "Renomear workspace"
+
+msgid "Delete workspace"
+msgstr "Deletar workspace"
+
+msgid "Delete workspace?"
+msgstr "Deletar workspace?"
+
+msgid "Delete workspace \"%1\" and all its tasks?"
+msgstr "Deletar o workspace \"%1\" e todas as suas tarefas?"
+
+msgid "Delete"
+msgstr "Deletar"
+
+msgid "Add description…"
+msgstr "Adicionar descrição…"
+
+msgid "Edit description"
+msgstr "Editar descrição"
+
+msgid "Add description"
+msgstr "Adicionar descrição"
+
+msgid "Auto-start next timer:"
+msgstr "Iniciar próximo timer automaticamente:"
+
+msgid "Automatically start the next session when one ends"
+msgstr "Iniciar automaticamente a próxima sessão ao terminar"
+
+msgid "New task behavior:"
+msgstr "Comportamento de nova tarefa:"
+
+msgid "Expand and focus description when adding a task"
+msgstr "Expandir e focar a descrição ao adicionar uma tarefa"

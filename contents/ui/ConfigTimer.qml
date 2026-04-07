@@ -15,6 +15,8 @@ Item {
     property string cfg_breakColor:           plasmoid.configuration.breakColor
     property string cfg_trayDisplayMode:      plasmoid.configuration.trayDisplayMode
     property bool   cfg_notificationsEnabled: plasmoid.configuration.notificationsEnabled
+    property bool   cfg_autoStartNext:        plasmoid.configuration.autoStartNext
+    property bool   cfg_autoExpandNewTask:    plasmoid.configuration.autoExpandNewTask
     property string cfg_focusIcon:            plasmoid.configuration.focusIcon
     property string cfg_pausedIcon:           plasmoid.configuration.pausedIcon
     property string cfg_shortBreakIcon:       plasmoid.configuration.shortBreakIcon
@@ -193,6 +195,26 @@ Item {
             checked: cfg_notificationsEnabled
             onToggled: cfg_notificationsEnabled = checked
             text: i18n("Send desktop notification when timer ends")
+        }
+
+        QQC2.CheckBox {
+            Kirigami.FormData.label: i18n("Auto-start next timer:")
+            checked: cfg_autoStartNext
+            onToggled: cfg_autoStartNext = checked
+            text: i18n("Automatically start the next session when one ends")
+        }
+
+        // ── Tasks ─────────────────────────────────────────────────────────
+        Kirigami.Separator {
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("Tasks")
+        }
+
+        QQC2.CheckBox {
+            Kirigami.FormData.label: i18n("New task behavior:")
+            checked: cfg_autoExpandNewTask
+            onToggled: cfg_autoExpandNewTask = checked
+            text: i18n("Expand and focus description when adding a task")
         }
     }
 }
