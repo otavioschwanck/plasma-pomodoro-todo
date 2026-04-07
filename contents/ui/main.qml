@@ -79,7 +79,9 @@ PlasmoidItem {
     }
 
     function clearAllTasks() {
-        taskModel.clear()
+        for (var i = taskModel.count - 1; i >= 0; i--) {
+            if (taskModel.get(i).done) taskModel.remove(i)
+        }
         saveTasks()
     }
 
@@ -107,7 +109,7 @@ PlasmoidItem {
         plasmoid.setAction("resetCurrent",  i18n("Reset Current"),   "media-playback-stop")
         plasmoid.setAction("resetAll",      i18n("Reset All"),       "view-refresh")
         plasmoid.setAction("skip",          i18n("Skip"),            "media-skip-forward")
-        plasmoid.setAction("clearAllTasks", i18n("Clear All Tasks"), "edit-clear-all")
+        plasmoid.setAction("clearAllTasks", i18n("Clear Completed Tasks"), "edit-clear-all")
 
         plasmoid.action("startPause").triggered.connect(function()    { root.isRunning ? root.pauseTimer() : root.startTimer() })
         plasmoid.action("resetCurrent").triggered.connect(function()  { root.resetCurrent() })
@@ -485,9 +487,9 @@ PlasmoidItem {
 
                 PlasmaComponents3.ToolButton {
                     icon.name: "edit-clear-all"
-                    visible: taskModel.count > 0
+                    visible: root.doneCount > 0
                     onClicked: clearConfirmDialog.open()
-                    QQC2.ToolTip.text: i18n("Clear all tasks")
+                    QQC2.ToolTip.text: i18n("Clear completed tasks")
                     QQC2.ToolTip.visible: hovered
                     QQC2.ToolTip.delay: 600
                 }
@@ -635,21 +637,21 @@ PlasmoidItem {
 
             QQC2.Dialog {
                 id: clearConfirmDialog
-                title: i18n("Clear all tasks?")
+                title: i18n("Clear completed tasks?")
                 modal: true
                 anchors.centerIn: parent
 
                 contentItem: PlasmaComponents3.Label {
-                    text: i18np("This will permanently remove %1 task.",
-                                "This will permanently remove %1 tasks.",
-                                taskModel.count)
+                    text: i18np("This will permanently remove %1 completed task.",
+                                "This will permanently remove %1 completed tasks.",
+                                root.doneCount)
                     wrapMode: Text.WordWrap
                     padding: Kirigami.Units.largeSpacing
                 }
 
                 footer: QQC2.DialogButtonBox {
                     QQC2.Button {
-                        text: i18n("Clear all")
+                        text: i18n("Clear completed")
                         QQC2.DialogButtonBox.buttonRole: QQC2.DialogButtonBox.DestructiveRole
                         onClicked: { root.clearAllTasks(); clearConfirmDialog.close() }
                     }

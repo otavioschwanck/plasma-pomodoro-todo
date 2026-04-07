@@ -46,21 +46,21 @@ msgstr "重置计时器及所有会话"
 msgid "Tasks"
 msgstr "任务"
 
-msgid "Clear all tasks"
-msgstr "清除所有任务"
+msgid "Clear completed tasks"
+msgstr "清除已完成任务"
 
-msgid "Clear All Tasks"
-msgstr "清除所有任务"
+msgid "Clear Completed Tasks"
+msgstr "清除已完成任务"
 
-msgid "Clear all tasks?"
-msgstr "清除所有任务？"
+msgid "Clear completed tasks?"
+msgstr "清除已完成任务？"
 
-msgid "This will permanently remove %1 task."
-msgid_plural "This will permanently remove %1 tasks."
-msgstr[0] "这将永久删除全部 %1 个任务。"
+msgid "This will permanently remove %1 completed task."
+msgid_plural "This will permanently remove %1 completed tasks."
+msgstr[0] "这将永久删除 %1 个已完成的任务。"
 
-msgid "Clear all"
-msgstr "全部清除"
+msgid "Clear completed"
+msgstr "清除已完成"
 
 msgid "Cancel"
 msgstr "取消"

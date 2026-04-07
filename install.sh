@@ -16,7 +16,7 @@ if command -v msgfmt &>/dev/null; then
     done
 else
     echo "  Warning: msgfmt not found — skipping translation compile."
-    echo "  Install gettext:  sudo pacman -S gettext"
+    echo "  Install gettext"
 fi
 
 # ── Install ───────────────────────────────────────────────────────────────────
