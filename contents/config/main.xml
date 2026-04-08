@@ -42,11 +42,14 @@
     <entry name="pausedIcon" type="String">
       <default>media-playback-pause</default>
     </entry>
+    <entry name="idleIcon" type="String">
+      <default></default>
+    </entry>
     <entry name="shortBreakIcon" type="String">
-      <default>appointment-new</default>
+      <default>face-sleeping</default>
     </entry>
     <entry name="longBreakIcon" type="String">
-      <default>appointment-new</default>
+      <default>face-sleeping</default>
     </entry>
   </group>
 </kcfg>

@@ -18,16 +18,26 @@ A KDE Plasma 6 panel widget that combines a **Pomodoro timer** with a **todo lis
 **Todo List**
 - Add and remove tasks
 - Check off completed tasks (shown as strikethrough)
-- Expand any task to add a longer description
+- Expand any task to add a description with full **Markdown support** (bold, lists, links, inline images)
+- Edit task titles inline with a pencil button
+- Clear completed tasks with one click (confirmation required)
 - Tasks persist across sessions (saved in widget config)
-- Clear all tasks with confirmation dialog
+
+**Workspaces**
+- Organize tasks into multiple independent lists — e.g. *Work*, *Personal*, *Games*
+- Switch between workspaces with a tab bar inside the popup
+- Add new workspaces with the **+** button; rename with the pencil icon; delete with the trash icon (confirmation required, only shown when more than one workspace exists)
+- A *Default* workspace is created automatically on first launch
+- Existing tasks are migrated automatically when upgrading from an older version
 
 **Fully Configurable**
 - Focus and break durations
+- Auto-start next session when a timer ends
 - Active color (focus) and break color
 - 4 separate tray icons: Focus / Paused+Idle / Short Break / Long Break
 - Panel display mode: icon + timer, icon only, or timer only
 - Notifications on/off
+- Auto-expand new tasks and jump straight to the description field
 
 **Localization**
 - English (default)
@@ -65,10 +75,15 @@ Finally, right-click the panel → **Add Widgets** → search for **Pomodoro Tod
 ## Usage
 
 - **Left-click** the tray icon to open/close the popup
-- **Right-click** the tray icon for quick actions (Start, Pause, Reset, Skip, Clear Tasks)
+- **Middle-click** the tray icon to toggle Start/Pause without opening the popup
+- **Right-click** the tray icon for quick actions (Start, Pause, Reset, Skip, Clear Completed Tasks)
+- Click the **pin** button (top-right of the popup) to keep the popup open above other windows
 - In the popup, press **Enter** or click **Add** to create a task
-- Click **▼** on a task to expand it and write a description
-- Go to **Right-click → Configure…** to adjust durations, colors, icons and notifications
+- Click a task title to expand/collapse its description
+- Click the **pencil** icon to edit a task's title; click it again (or press Enter) to save
+- In the description area, click the **pencil** icon to switch to edit mode — Markdown is rendered in read mode
+- Use the **workspace tabs** to switch lists; click **+** to add a new workspace
+- Go to **Right-click → Configure…** to adjust durations, colors, icons, and behavior
 
 ---
 
@@ -88,7 +103,7 @@ pomodoro-todo/
 │   │   └── zh_CN/LC_MESSAGES/  # Simplified Chinese .po/.mo
 │   └── ui/
 │       ├── main.qml            # Root PlasmoidItem — all state + layout
-│       ├── TodoItem.qml        # Single task row delegate
+│       ├── TodoItem.qml        # Single task row delegate (Markdown descriptions)
 │       └── ConfigTimer.qml     # Configure dialog page
 ```
 

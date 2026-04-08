@@ -150,8 +150,17 @@ msgstr "Ícones da Bandeja"
 msgid "Focus:"
 msgstr "Foco:"
 
-msgid "Paused / idle:"
-msgstr "Pausado / inativo:"
+msgid "Paused:"
+msgstr "Pausado:"
+
+msgid "Idle (not started):"
+msgstr "Inativo (não iniciado):"
+
+msgid "(default)"
+msgstr "(padrão)"
+
+msgid "Reset to default"
+msgstr "Restaurar padrão"
 
 msgid "Short break:"
 msgstr "Pausa curta:"
@@ -174,8 +183,6 @@ msgstr "Manter aberto"
 msgid "Auto-close"
 msgstr "Fechar automaticamente"
 
-msgid "Markdown supported · Drag files to attach"
-msgstr "Markdown suportado · Arraste arquivos para anexar"
 
 msgid "Workspace name:"
 msgstr "Nome do workspace:"

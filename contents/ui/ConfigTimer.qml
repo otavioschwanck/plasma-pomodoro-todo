@@ -19,6 +19,7 @@ Item {
     property bool   cfg_autoExpandNewTask:    plasmoid.configuration.autoExpandNewTask
     property string cfg_focusIcon:            plasmoid.configuration.focusIcon
     property string cfg_pausedIcon:           plasmoid.configuration.pausedIcon
+    property string cfg_idleIcon:             plasmoid.configuration.idleIcon
     property string cfg_shortBreakIcon:       plasmoid.configuration.shortBreakIcon
     property string cfg_longBreakIcon:        plasmoid.configuration.longBreakIcon
 
@@ -33,6 +34,7 @@ Item {
             switch (target) {
                 case "focus":      cfg_focusIcon      = iconName; break
                 case "paused":     cfg_pausedIcon     = iconName; break
+                case "idle":       cfg_idleIcon       = iconName; break
                 case "shortBreak": cfg_shortBreakIcon = iconName; break
                 case "longBreak":  cfg_longBreakIcon  = iconName; break
             }
@@ -44,18 +46,19 @@ Item {
         property string label: ""
         property string iconName: ""
         property string targetKey: ""
+        property string defaultIcon: ""   // empty string = use logo
 
         Kirigami.FormData.label: label
         spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Icon {
-            source: iconName || "appointment-new"
+            source: iconName || plasmoid.file("assets/logo.svg") || "appointment-new"
             Layout.preferredWidth:  Kirigami.Units.iconSizes.medium
             Layout.preferredHeight: Kirigami.Units.iconSizes.medium
         }
 
         QQC2.Label {
-            text: iconName || "appointment-new"
+            text: iconName.length > 0 ? iconName : i18n("(default)")
             opacity: 0.7
             Layout.fillWidth: true
             elide: Text.ElideRight
@@ -65,6 +68,22 @@ Item {
             text: i18n("Choose…")
             icon.name: "document-open"
             onClicked: { iconDialog.target = targetKey; iconDialog.open() }
+        }
+
+        QQC2.Button {
+            icon.name: "edit-undo"
+            enabled: iconName !== defaultIcon
+            onClicked: {
+                switch (targetKey) {
+                    case "focus":      cfg_focusIcon      = defaultIcon; break
+                    case "paused":     cfg_pausedIcon     = defaultIcon; break
+                    case "idle":       cfg_idleIcon       = defaultIcon; break
+                    case "shortBreak": cfg_shortBreakIcon = defaultIcon; break
+                    case "longBreak":  cfg_longBreakIcon  = defaultIcon; break
+                }
+            }
+            QQC2.ToolTip.text: i18n("Reset to default")
+            QQC2.ToolTip.visible: hovered
         }
     }
 
@@ -162,26 +181,37 @@ Item {
 
         IconPickerRow {
             Kirigami.FormData.label: i18n("Focus:")
-            iconName:  cfg_focusIcon
-            targetKey: "focus"
+            iconName:    cfg_focusIcon
+            targetKey:   "focus"
+            defaultIcon: "appointment-new"
         }
 
         IconPickerRow {
-            Kirigami.FormData.label: i18n("Paused / idle:")
-            iconName:  cfg_pausedIcon
-            targetKey: "paused"
+            Kirigami.FormData.label: i18n("Paused:")
+            iconName:    cfg_pausedIcon
+            targetKey:   "paused"
+            defaultIcon: "media-playback-pause"
+        }
+
+        IconPickerRow {
+            Kirigami.FormData.label: i18n("Idle (not started):")
+            iconName:    cfg_idleIcon
+            targetKey:   "idle"
+            defaultIcon: ""   // empty = logo
         }
 
         IconPickerRow {
             Kirigami.FormData.label: i18n("Short break:")
-            iconName:  cfg_shortBreakIcon
-            targetKey: "shortBreak"
+            iconName:    cfg_shortBreakIcon
+            targetKey:   "shortBreak"
+            defaultIcon: "face-sleeping"
         }
 
         IconPickerRow {
             Kirigami.FormData.label: i18n("Long break:")
-            iconName:  cfg_longBreakIcon
-            targetKey: "longBreak"
+            iconName:    cfg_longBreakIcon
+            targetKey:   "longBreak"
+            defaultIcon: "face-sleeping"
         }
 
         // ── Notifications ─────────────────────────────────────────────────

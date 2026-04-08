@@ -150,7 +150,16 @@ msgid "Focus:"
 msgstr "专注："
 
 msgid "Paused / idle:"
-msgstr "暂停/空闲："
+msgstr "已暂停："
+
+msgid "Idle (not started):"
+msgstr "空闲（未开始）："
+
+msgid "(default)"
+msgstr "（默认）"
+
+msgid "Reset to default"
+msgstr "恢复默认"
 
 msgid "Short break:"
 msgstr "短休："
@@ -173,8 +182,6 @@ msgstr "保持打开"
 msgid "Auto-close"
 msgstr "自动关闭"
 
-msgid "Markdown supported · Drag files to attach"
-msgstr "支持 Markdown · 拖入文件以附加"
 
 msgid "Workspace name:"
 msgstr "工作区名称："

@@ -15,6 +15,10 @@ PlasmoidItem {
     property int sessionCount: 0
     property string timerMode: "work"
     property int doneCount: 0
+    property bool isPaused: false   // true only after an explicit Pause; false after Start/Reset
+
+    // Resolved at runtime so the path is always correct regardless of install location
+    readonly property string logoUrl: Qt.resolvedUrl("../assets/logo.svg").toString()
 
     // ─── Workspace / task state ───────────────────────────────────────────────
     property int currentWorkspace: 0
@@ -44,18 +48,20 @@ PlasmoidItem {
         return plasmoid.configuration.longBreakMinutes * 60
     }
 
-    function startTimer()  { pomodoroTimer.start(); isRunning = true  }
-    function pauseTimer()  { pomodoroTimer.stop();  isRunning = false }
+    function startTimer()  { pomodoroTimer.start(); isRunning = true;  isPaused = false }
+    function pauseTimer()  { pomodoroTimer.stop();  isRunning = false; isPaused = true  }
 
     function resetCurrent() {
         pomodoroTimer.stop()
         isRunning = false
+        isPaused = false
         remainingSeconds = modeDuration()
     }
 
     function resetAll() {
         pomodoroTimer.stop()
         isRunning = false
+        isPaused = false
         sessionCount = 0
         timerMode = "work"
         remainingSeconds = plasmoid.configuration.pomodoroMinutes * 60
@@ -72,9 +78,10 @@ PlasmoidItem {
     }
 
     function currentIcon() {
-        if (!root.isRunning)                 return plasmoid.configuration.pausedIcon     || "media-playback-pause"
-        if (root.timerMode === "shortBreak") return plasmoid.configuration.shortBreakIcon || "appointment-new"
-        if (root.timerMode === "longBreak")  return plasmoid.configuration.longBreakIcon  || "appointment-new"
+        if (!root.isRunning && root.isPaused)  return plasmoid.configuration.pausedIcon || "media-playback-pause"
+        if (!root.isRunning && !root.isPaused) return plasmoid.configuration.idleIcon   || root.logoUrl
+        if (root.timerMode === "shortBreak")   return plasmoid.configuration.shortBreakIcon || "face-sleeping"
+        if (root.timerMode === "longBreak")    return plasmoid.configuration.longBreakIcon  || "face-sleeping"
         return plasmoid.configuration.focusIcon || "appointment-new"
     }
 
