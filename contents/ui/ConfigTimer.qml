@@ -52,7 +52,7 @@ Item {
         spacing: Kirigami.Units.smallSpacing
 
         Kirigami.Icon {
-            source: iconName || plasmoid.file("assets/logo.svg") || "appointment-new"
+            source: iconName || "korg-todo-symbolic"
             Layout.preferredWidth:  Kirigami.Units.iconSizes.medium
             Layout.preferredHeight: Kirigami.Units.iconSizes.medium
         }

@@ -18,7 +18,7 @@ PlasmoidItem {
     property bool isPaused: false   // true only after an explicit Pause; false after Start/Reset
 
     // Resolved at runtime so the path is always correct regardless of install location
-    readonly property string logoUrl: Qt.resolvedUrl("../assets/logo.svg").toString()
+    readonly property string logoUrl: "korg-todo-symbolic"
 
     // ─── Workspace / task state ───────────────────────────────────────────────
     property int currentWorkspace: 0

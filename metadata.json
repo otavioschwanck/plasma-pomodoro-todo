@@ -8,7 +8,7 @@
         ],
         "Category": "Utilities",
         "Description": "Pomodoro timer combined with a todo list",
-        "Icon": "appointment-new",
+        "Icon": "korg-todo-symbolic",
         "Id": "com.github.pomodoro-todo",
         "License": "GPL-2.0-or-later",
         "Name": "Pomodoro Todo",
