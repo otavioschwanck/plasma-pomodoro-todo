@@ -5,7 +5,7 @@ WIDGET_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WIDGET_ID="com.github.pomodoro-todo"
 INSTALL_DIR="$HOME/.local/share/plasma/plasmoids/$WIDGET_ID"
 
-echo "Building Pomodoro Todo widget..."
+echo "Installing Pomodoro Todo widget..."
 
 # ── Compile translations (.po → .mo) ──────────────────────────────────────────
 if command -v msgfmt &>/dev/null; then
@@ -29,6 +29,10 @@ fi
 mkdir -p "$INSTALL_DIR"
 cp    "$WIDGET_DIR/metadata.json" "$INSTALL_DIR/"
 cp -r "$WIDGET_DIR/contents"      "$INSTALL_DIR/"
+
+# ── Ensure scripts are executable ────────────────────────────────────────────
+chmod +x "$INSTALL_DIR/contents/bin/wallet-helper.sh"
+chmod +x "$INSTALL_DIR/contents/bin/google-auth.py"
 
 echo ""
 echo "Done! To load the widget:"

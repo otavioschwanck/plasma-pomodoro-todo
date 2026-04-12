@@ -30,6 +30,13 @@ A KDE Plasma 6 panel widget that combines a **Pomodoro timer** with a **todo lis
 - A *Default* workspace is created automatically on first launch
 - Existing tasks are migrated automatically when upgrading from an older version
 
+**Google Tasks Sync** *(optional)*
+- Bidirectional sync with Google Tasks
+- Assign each workspace to a Google Task list
+- Auto-sync on save and/or on a timer
+- Last-write-wins conflict resolution
+- Credentials stored securely in KWallet
+
 **Fully Configurable**
 - Focus and break durations
 - Auto-start next session when a timer ends
@@ -51,6 +58,8 @@ A KDE Plasma 6 panel widget that combines a **Pomodoro timer** with a **todo lis
 
 - KDE Plasma 6
 - `gettext` (for compiling translations): `sudo pacman -S gettext`
+- `python3` (for Google Tasks OAuth): pre-installed on most distros
+- KWallet (for secure credential storage): included in KDE Plasma
 
 ---
 
@@ -69,6 +78,20 @@ kquitapp6 plasmashell && kstart plasmashell
 ```
 
 Finally, right-click the panel → **Add Widgets** → search for **Pomodoro Todo**.
+
+---
+
+## Google Tasks Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials) and create or select a project
+2. Navigate to **APIs & Services → Library**, search for **Tasks API**, and click **Enable**
+3. Go to **APIs & Services → Credentials → Create Credentials → OAuth Client ID**
+4. Choose **Desktop app** as the application type
+5. Copy the **Client ID** and **Client Secret**
+6. In the widget, open **Right-click → Configure… → Google Tasks**
+7. Paste the Client ID and Client Secret, then click **Connect Google Account**
+8. Complete the authorization in the browser that opens
+9. Assign each workspace to a Google Task list using the **Choose…** buttons
 
 ---
 
@@ -95,6 +118,9 @@ pomodoro-todo/
 ├── screenshot.png              # Cover image
 ├── install.sh                  # Build + install script
 ├── contents/
+│   ├── bin/
+│   │   ├── wallet-helper.sh    # KWallet D-Bus bridge (read/write/clear secrets)
+│   │   └── google-auth.py      # OAuth2 PKCE browser flow for Google Tasks
 │   ├── config/
 │   │   ├── main.xml            # KConfigXT schema (all settings)
 │   │   └── config.qml          # Config dialog page list
@@ -104,7 +130,10 @@ pomodoro-todo/
 │   └── ui/
 │       ├── main.qml            # Root PlasmoidItem — all state + layout
 │       ├── TodoItem.qml        # Single task row delegate (Markdown descriptions)
-│       └── ConfigTimer.qml     # Configure dialog page
+│       ├── WalletHelper.qml    # QML wrapper around wallet-helper.sh
+│       ├── GoogleTasksSync.qml # Google Tasks bidirectional sync engine
+│       ├── ConfigTimer.qml     # Timer settings page
+│       └── ConfigGoogle.qml    # Google Tasks settings page
 ```
 
 ---

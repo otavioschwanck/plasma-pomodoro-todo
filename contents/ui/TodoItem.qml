@@ -20,11 +20,14 @@ Item {
     signal titleEdited(string newTitle)
     signal descriptionEdited(string newDesc)
     signal removeRequested()
+    signal editingStarted()
+    signal editingEnded()
 
     implicitHeight: col.implicitHeight
     implicitWidth: col.implicitWidth
 
     onEditingChanged: {
+        editing ? editingStarted() : editingEnded()
         if (editing) Qt.callLater(function() {
             titleField.forceActiveFocus()
             titleField.selectAll()
@@ -32,6 +35,7 @@ Item {
     }
 
     onEditingDescChanged: {
+        editingDesc ? editingStarted() : editingEnded()
         if (editingDesc) Qt.callLater(function() { descArea.forceActiveFocus() })
     }
 

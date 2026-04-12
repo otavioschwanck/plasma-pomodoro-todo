@@ -6,4 +6,9 @@ ConfigModel {
         icon: "chronometer"
         source: "ConfigTimer.qml"
     }
+    ConfigCategory {
+        name: "Google Tasks"
+        icon: "view-calendar-tasks"
+        source: "ConfigGoogle.qml"
+    }
 }

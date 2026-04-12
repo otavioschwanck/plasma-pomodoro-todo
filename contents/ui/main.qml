@@ -21,8 +21,17 @@ PlasmoidItem {
     readonly property string logoUrl: "korg-todo-symbolic"
 
     // ─── Workspace / task state ───────────────────────────────────────────────
-    property int currentWorkspace: 0
-    property var workspacesData: []
+    property int  currentWorkspace: 0
+    property var  workspacesData: []
+    property int  activeEdits: 0          // incremented by TodoItem while editing
+    property bool _pendingSyncReload: false
+
+    onActiveEditsChanged: {
+        if (activeEdits === 0 && _pendingSyncReload) {
+            _pendingSyncReload = false
+            root.loadTasks()
+        }
+    }
 
     function formatTime(secs) {
         var m = Math.floor(secs / 60)
@@ -112,6 +121,9 @@ PlasmoidItem {
     Component.onCompleted: {
         loadTasks()
 
+        if (plasmoid.configuration.googleEnabled && plasmoid.configuration.googleAutoSync)
+            Qt.callLater(function() { googleSync.sync() })
+
         plasmoid.setAction("startPause",    i18n("Start"),           "media-playback-start")
         plasmoid.setAction("resetCurrent",  i18n("Reset Current"),   "media-playback-stop")
         plasmoid.setAction("resetAll",      i18n("Reset All"),       "view-refresh")
@@ -163,6 +175,33 @@ PlasmoidItem {
     // ─── Task model ───────────────────────────────────────────────────────────
     ListModel { id: taskModel }
 
+    // ─── Google Tasks sync ────────────────────────────────────────────────────
+    GoogleTasksSync {
+        id: googleSync
+        onSyncComplete: function(success, _msg) {
+            if (!success) return
+            // Always refresh workspacesData from config so googleTaskIds are
+            // immediately visible to saveTasks() — even when UI reload is deferred.
+            // Without this, saveTasks() during an active edit overwrites config
+            // with stale data (no googleTaskId) causing duplicates on next sync.
+            try {
+                var fresh = JSON.parse(plasmoid.configuration.tasks)
+                if (Array.isArray(fresh)) root.workspacesData = fresh
+            } catch(e) {}
+
+            if (root.activeEdits > 0) root._pendingSyncReload = true
+            else root.loadTasks()
+        }
+    }
+
+    function generateUid() {
+        try { if (typeof Qt.uuidv4 === "function") return Qt.uuidv4() } catch(e) {}
+        return "xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx".replace(/[xy]/g, function(c) {
+            var r = Math.random() * 16 | 0
+            return (c === "x" ? r : (r & 0x3 | 0x8)).toString(16)
+        })
+    }
+
     function updateDoneCount() {
         var n = 0
         for (var i = 0; i < taskModel.count; i++)
@@ -172,16 +211,26 @@ PlasmoidItem {
 
     // Populate taskModel from workspacesData[currentWorkspace]
     function reloadTaskModel() {
+        // Preserve which tasks were expanded so sync doesn't collapse open items
+        var expandedUids = {}
+        for (var i = 0; i < taskModel.count; i++) {
+            var item = taskModel.get(i)
+            if (item.expanded && item.uid) expandedUids[item.uid] = true
+        }
+
         taskModel.clear()
         var ws = workspacesData[currentWorkspace]
         if (!ws) return
         ;(ws.tasks || []).forEach(function(t) {
             taskModel.append({
-                title:       t.title       || "",
-                description: t.description || "",
-                done:        t.done        || false,
-                expanded:    false,
-                editDesc:    false
+                title:        t.title        || "",
+                description:  t.description  || "",
+                done:         t.done         || false,
+                uid:          t.uid          || "",
+                lastModified: t.lastModified || "",
+                googleTaskId: t.googleTaskId || "",
+                expanded:     !!(t.uid && expandedUids[t.uid]),
+                editDesc:     false
             })
         })
     }
@@ -189,10 +238,28 @@ PlasmoidItem {
     // Sync taskModel → workspacesData[currentWorkspace] (deep-copy to trigger bindings)
     function syncCurrentWorkspace() {
         if (workspacesData.length === 0) return
+        var prevTasks = workspacesData[currentWorkspace].tasks || []
+        var prevMap   = {}
+        prevTasks.forEach(function(t) { if (t.uid) prevMap[t.uid] = t })
+
+        var now   = new Date().toISOString()
         var tasks = []
         for (var i = 0; i < taskModel.count; i++) {
-            var t = taskModel.get(i)
-            tasks.push({ title: t.title, description: t.description, done: t.done })
+            var t    = taskModel.get(i)
+            var uid  = t.uid || root.generateUid()
+            var prev = prevMap[uid]
+            var changed = !prev
+                || prev.title       !== t.title
+                || prev.description !== t.description
+                || prev.done        !== t.done
+            tasks.push({
+                title:        t.title,
+                description:  t.description,
+                done:         t.done,
+                uid:          uid,
+                lastModified: changed ? now : (prev && prev.lastModified || now),
+                googleTaskId: t.googleTaskId || (prev && prev.googleTaskId || "")
+            })
         }
         var copy = JSON.parse(JSON.stringify(workspacesData))
         copy[currentWorkspace].tasks = tasks
@@ -216,7 +283,24 @@ PlasmoidItem {
         } catch(e) {
             workspacesData = [{ name: "Default", tasks: [] }]
         }
-        currentWorkspace = 0
+
+        // Migration: ensure every task has uid + lastModified,
+        //            every workspace has googleTaskListId + googleSyncedIds
+        var migrated = false
+        var now = new Date().toISOString()
+        workspacesData = workspacesData.map(function(ws) {
+            if (!ws.googleTaskListId) { ws.googleTaskListId = ""; migrated = true }
+            if (!ws.googleSyncedIds)  { ws.googleSyncedIds  = []; migrated = true }
+            ws.tasks = (ws.tasks || []).map(function(t) {
+                if (!t.uid)          { t.uid          = root.generateUid(); migrated = true }
+                if (!t.lastModified) { t.lastModified = now;                migrated = true }
+                return t
+            })
+            return ws
+        })
+        if (migrated) plasmoid.configuration.tasks = JSON.stringify(workspacesData)
+
+        if (currentWorkspace >= workspacesData.length) currentWorkspace = 0
         reloadTaskModel()
         updateDoneCount()
     }
@@ -225,6 +309,11 @@ PlasmoidItem {
         syncCurrentWorkspace()
         plasmoid.configuration.tasks = JSON.stringify(workspacesData)
         updateDoneCount()
+        if (plasmoid.configuration.googleEnabled
+                && plasmoid.configuration.googleAutoSync
+                && !googleSync.isSyncing) {
+            googleSync.schedulePush()
+        }
     }
 
     function addTask(title) {
@@ -232,11 +321,13 @@ PlasmoidItem {
         if (title.length === 0) return false
         var autoExpand = plasmoid.configuration.autoExpandNewTask
         taskModel.append({
-            title:       title,
-            description: "",
-            done:        false,
-            expanded:    autoExpand,
-            editDesc:    autoExpand
+            title:        title,
+            description:  "",
+            done:         false,
+            uid:          root.generateUid(),
+            lastModified: new Date().toISOString(),
+            expanded:     autoExpand,
+            editDesc:     autoExpand
         })
         saveTasks()
         return true
@@ -505,6 +596,27 @@ PlasmoidItem {
                     QQC2.ToolTip.text: i18n("Clear completed tasks")
                     QQC2.ToolTip.visible: hovered
                     QQC2.ToolTip.delay: 600
+                }
+
+                PlasmaComponents3.ToolButton {
+                    id: syncBtn
+                    visible: plasmoid.configuration.googleEnabled
+                    flat: true
+                    icon.name: googleSync.syncStatus === "error" ? "dialog-error" : "view-refresh"
+                    onClicked: googleSync.sync()
+                    QQC2.ToolTip.text: googleSync.syncMessage.length > 0
+                                       ? googleSync.syncMessage
+                                       : i18n("Sync with Google Tasks")
+                    QQC2.ToolTip.visible: hovered
+                    QQC2.ToolTip.delay: 600
+
+                    SequentialAnimation {
+                        running: googleSync.isSyncing
+                        loops: Animation.Infinite
+                        NumberAnimation { target: syncBtn; property: "opacity"; to: 0.3; duration: 500; easing.type: Easing.InOutSine }
+                        NumberAnimation { target: syncBtn; property: "opacity"; to: 1.0; duration: 500; easing.type: Easing.InOutSine }
+                        onRunningChanged: if (!running) syncBtn.opacity = 1.0
+                    }
                 }
             }
 
@@ -794,6 +906,8 @@ PlasmoidItem {
                             taskModel.remove(index)
                             root.saveTasks()
                         }
+                        onEditingStarted: root.activeEdits++
+                        onEditingEnded:   root.activeEdits = Math.max(0, root.activeEdits - 1)
                     }
                 }
             }
