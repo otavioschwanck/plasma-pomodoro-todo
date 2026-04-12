@@ -16,7 +16,8 @@ Item {
     property bool   isSyncing:    false
     property bool   allowAutoSync: true   // set false in config page
 
-    property string _cachedToken: ""
+    property string _cachedToken:   ""
+    property var    _lastSyncData:  null
 
     // ── KWallet helper ──────────────────────────────────────────────────────
     WalletHelper { id: walletHelper }
@@ -137,7 +138,9 @@ Item {
         var step = 0
         function next() {
             if (step >= indices.length) {
-                plasmoid.configuration.tasks = JSON.stringify(data)
+                // Don't write config here — let main.qml merge with current
+                // state to avoid overwriting changes made during async sync.
+                googleRoot._lastSyncData = data
                 _cachedToken = ""
                 isSyncing   = false
                 syncStatus  = "ok"

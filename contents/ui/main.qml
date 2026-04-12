@@ -180,14 +180,67 @@ PlasmoidItem {
         id: googleSync
         onSyncComplete: function(success, _msg) {
             if (!success) return
-            // Always refresh workspacesData from config so googleTaskIds are
-            // immediately visible to saveTasks() — even when UI reload is deferred.
-            // Without this, saveTasks() during an active edit overwrites config
-            // with stale data (no googleTaskId) causing duplicates on next sync.
-            try {
-                var fresh = JSON.parse(plasmoid.configuration.tasks)
-                if (Array.isArray(fresh)) root.workspacesData = fresh
-            } catch(e) {}
+
+            // Merge sync result into current workspacesData without overwriting
+            // any task additions/deletions/workspace changes made during the
+            // async sync operation.
+            var syncedData = googleSync._lastSyncData
+            if (Array.isArray(syncedData) && syncedData.length > 0) {
+                var cur = JSON.parse(JSON.stringify(root.workspacesData))
+
+                syncedData.forEach(function(syncedWs, i) {
+                    if (!cur[i]) return
+
+                    if (!syncedWs.googleTaskListId) return  // non-synced ws: keep cur as-is
+
+                    cur[i].googleSyncedIds  = syncedWs.googleSyncedIds
+                    cur[i].googleTaskListId = syncedWs.googleTaskListId
+
+                    var syncedByUid = {}
+                    ;(syncedWs.tasks || []).forEach(function(t) { if (t.uid) syncedByUid[t.uid] = t })
+                    var curByUid = {}
+                    ;(cur[i].tasks || []).forEach(function(t) { if (t.uid) curByUid[t.uid] = t })
+
+                    var result = []
+
+                    // Process tasks present in current state
+                    ;(cur[i].tasks || []).forEach(function(t) {
+                        if (!t.uid) { result.push(t); return }
+                        var s = syncedByUid[t.uid]
+                        if (!s) {
+                            // Not in sync result — remote-deleted if id was known & gone
+                            if (t.googleTaskId
+                                    && cur[i].googleSyncedIds.indexOf(t.googleTaskId) < 0) {
+                                return  // remote-deleted: drop
+                            }
+                            result.push(t)  // added after sync started or local-only: keep
+                            return
+                        }
+                        // Apply googleTaskId + remote-updated content
+                        var m = JSON.parse(JSON.stringify(t))
+                        if (s.googleTaskId) m.googleTaskId = s.googleTaskId
+                        if (s.lastModified > (t.lastModified || "")) {
+                            m.title = s.title; m.description = s.description
+                            m.done  = s.done;  m.lastModified = s.lastModified
+                        }
+                        result.push(m)
+                    })
+
+                    // Add tasks pulled from Google that don't exist locally
+                    ;(syncedWs.tasks || []).forEach(function(t) {
+                        if (t.uid && !curByUid[t.uid]) result.push(t)
+                    })
+
+                    cur[i].tasks = result
+                })
+
+                // Preserve workspaces added during sync (beyond sync snapshot)
+                for (var j = syncedData.length; j < root.workspacesData.length; j++)
+                    if (!cur[j]) cur.push(root.workspacesData[j])
+
+                root.workspacesData = cur
+                plasmoid.configuration.tasks = JSON.stringify(cur)
+            }
 
             if (root.activeEdits > 0) root._pendingSyncReload = true
             else root.loadTasks()
