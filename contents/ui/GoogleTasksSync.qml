@@ -77,20 +77,37 @@ Item {
 
     function _withToken(callback) {
         var expiry = parseInt(plasmoid.configuration.googleTokenExpiry || "0")
+        var expiresIn = Math.round((expiry - Date.now()) / 1000)
         if (Date.now() < expiry - 60000) {
+            console.log("[pomodoro] _withToken: cached token still valid (expires in " + expiresIn + "s), reading from KWallet")
             walletHelper.readSecret("google-access-token", function(token) {
-                if (token) { callback(token); return }
+                if (token) {
+                    console.log("[pomodoro] _withToken: KWallet returned access token ok")
+                    callback(token); return
+                }
+                console.log("[pomodoro] _withToken: KWallet returned empty access token, falling back to refresh")
                 _refreshToken(callback)
             })
             return
         }
+        console.log("[pomodoro] _withToken: token expired or not set (expiry=" + expiry + "), refreshing")
         _refreshToken(callback)
     }
 
     function _refreshToken(callback) {
+        console.log("[pomodoro] _refreshToken: reading refresh token from KWallet")
         walletHelper.readSecret("google-refresh-token", function(refresh) {
-            if (!refresh) { callback(""); return }
+            if (!refresh) {
+                console.log("[pomodoro] _refreshToken: no refresh token in KWallet")
+                callback(""); return
+            }
+            console.log("[pomodoro] _refreshToken: refresh token found, reading client secret")
             walletHelper.readSecret("google-client-secret", function(secret) {
+                if (!secret) {
+                    console.log("[pomodoro] _refreshToken: no client secret in KWallet")
+                    callback(""); return
+                }
+                console.log("[pomodoro] _refreshToken: posting token refresh request")
                 var xhr = new XMLHttpRequest()
                 xhr.open("POST", "https://oauth2.googleapis.com/token")
                 xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded")
@@ -101,14 +118,19 @@ Item {
                     try { d = JSON.parse(xhr.responseText) } catch(e) {}
                     if (d.access_token) {
                         var exp = Date.now() + (d.expires_in || 3600) * 1000
+                        console.log("[pomodoro] _refreshToken: refresh ok, new token expires in " + (d.expires_in || 3600) + "s")
                         walletHelper.writeSecret("google-access-token", d.access_token)
                         plasmoid.configuration.googleTokenExpiry = String(exp)
                         callback(d.access_token)
                     } else {
+                        console.log("[pomodoro] _refreshToken: refresh failed HTTP " + xhr.status + " error=" + (d.error || "unknown") + " desc=" + (d.error_description || ""))
                         callback("")
                     }
                 }
-                xhr.ontimeout = function() { callback("") }
+                xhr.ontimeout = function() {
+                    console.log("[pomodoro] _refreshToken: request timed out")
+                    callback("")
+                }
                 xhr.send("client_id="     + encodeURIComponent(plasmoid.configuration.googleClientId) +
                          "&client_secret=" + encodeURIComponent(secret) +
                          "&refresh_token=" + encodeURIComponent(refresh) +

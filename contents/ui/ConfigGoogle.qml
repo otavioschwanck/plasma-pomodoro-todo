@@ -32,14 +32,18 @@ Item {
     }
 
     Component.onCompleted: {
+        console.log("[pomodoro] ConfigGoogle: opened, checking KWallet for refresh token")
         configWallet.hasEntry("google-refresh-token", function(has) {
+            console.log("[pomodoro] ConfigGoogle: has refresh token in KWallet: " + has)
             configPage.hasRefreshToken = has
             if (has) {
-                // Already connected — get a valid token and load task lists
                 configGoogleSync._withToken(function(token) {
                     if (token) {
+                        console.log("[pomodoro] ConfigGoogle: session token obtained ok")
                         configPage._sessionToken = token
                         _loadTaskLists(token)
+                    } else {
+                        console.log("[pomodoro] ConfigGoogle: _withToken returned empty (KWallet locked or refresh failed)")
                     }
                 })
             }
@@ -57,24 +61,31 @@ Item {
         configPage.authError        = ""
         configPage.isAuthenticating = true
 
-        // Opens browser + local HTTP server via Python script; blocks until done
+        console.log("[pomodoro] startAuth: launching OAuth browser flow, clientId=" + id.substring(0, 12) + "...")
         configWallet.googleAuth(id, configPage.clientSecretInput, function(json) {
             configPage.isAuthenticating = false
             var d = {}
-            try { d = JSON.parse(json) } catch(e) {}
+            try { d = JSON.parse(json) } catch(e) {
+                console.log("[pomodoro] startAuth: failed to parse response JSON: " + json.substring(0, 100))
+            }
 
             if (d.error) {
+                console.log("[pomodoro] startAuth: OAuth error: " + d.error + " " + (d.error_description || ""))
                 configPage.authError = d.error + (d.error_description ? ": " + d.error_description : "")
                 return
             }
             if (!d.access_token) {
+                console.log("[pomodoro] startAuth: no access_token in response, keys=" + Object.keys(d).join(","))
                 configPage.authError = i18n("No token received — check credentials and try again")
                 return
             }
 
+            console.log("[pomodoro] startAuth: access token received, has_refresh=" + !!d.refresh_token + " expires_in=" + d.expires_in)
             configWallet.writeSecret("google-client-secret", configPage.clientSecretInput)
             if (d.refresh_token)
                 configWallet.writeSecret("google-refresh-token", d.refresh_token)
+            else
+                console.log("[pomodoro] startAuth: WARNING no refresh_token in response (user may need to revoke & reconnect to get one)")
             configWallet.writeSecret("google-access-token", d.access_token)
             plasmoid.configuration.googleTokenExpiry =
                 String(Date.now() + (d.expires_in || 3600) * 1000)
@@ -121,15 +132,17 @@ Item {
             taskListModel.clear()
             _errorMsg = ""
             _loading  = true
-            configGoogleSync._withToken(function(t) {
+
+            function doLoad(t) {
                 if (!t) {
                     _loading  = false
-                    _errorMsg = i18n("Not authenticated. Reconnect your account.")
+                    _errorMsg = i18n("Could not get an access token. Try disconnecting and reconnecting your account.")
                     return
                 }
                 configPage._sessionToken = t
                 configGoogleSync.listTaskLists(t, function(ok, lists, errCode) {
                     _loading = false
+                    console.log("[pomodoro] listTaskLists result: ok=" + ok + " count=" + (ok ? lists.length : 0) + " errCode=" + (errCode || "none"))
                     if (ok) {
                         lists.forEach(function(l) {
                             taskListModel.append({listId: l.id, title: l.title})
@@ -140,7 +153,17 @@ Item {
                         _errorMsg = i18n("Could not load task lists. Check your connection and try again.")
                     }
                 })
-            })
+            }
+
+            // Prefer the already-validated session token to avoid a redundant
+            // KWallet round-trip that may fail if the wallet is locked.
+            if (configPage._sessionToken) {
+                console.log("[pomodoro] taskListPicker: using cached session token")
+                doLoad(configPage._sessionToken)
+            } else {
+                console.log("[pomodoro] taskListPicker: no session token, calling _withToken")
+                configGoogleSync._withToken(doLoad)
+            }
         }
 
         contentItem: ColumnLayout {
