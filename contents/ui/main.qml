@@ -25,6 +25,10 @@ PlasmoidItem {
     property var  workspacesData: []
     property int  activeEdits: 0          // incremented by TodoItem while editing
     property bool _pendingSyncReload: false
+    property real popupBaseWidth: Kirigami.Units.gridUnit * 32
+    property real popupBaseHeight: Kirigami.Units.gridUnit * 28
+    property bool popupBaseWidthLocked: false
+    property bool popupBaseHeightLocked: false
 
     onActiveEditsChanged: {
         if (activeEdits === 0 && _pendingSyncReload) {
@@ -110,11 +114,64 @@ PlasmoidItem {
         urgency:       Notification.NormalUrgency
     }
 
+    // Reminder notifications: critical urgency + persistent flag so Plasma
+    // shows them even over fullscreen apps / Do Not Disturb and never
+    // auto-dismisses them. Missed reminders (PC off, etc.) are caught by
+    // checkReminders() on startup via loadTasks().
+    Notification {
+        id: reminderNotif
+        componentName: "plasma_workspace"
+        eventId:       "notification"
+        title:         "Reminder"
+        iconName:      "appointment-reminder"
+        urgency:       Notification.CriticalUrgency
+        autoDelete:    false
+        flags:         Notification.Persistent
+    }
+
     function sendNotification(title, body) {
         if (!plasmoid.configuration.notificationsEnabled) return
         timerNotif.title = title
         timerNotif.text  = body
         timerNotif.sendEvent()
+    }
+
+    function sendReminderNotification(title, body) {
+        if (!plasmoid.configuration.notificationsEnabled) return
+        reminderNotif.title = title
+        reminderNotif.text  = body
+        reminderNotif.sendEvent()
+    }
+
+    // Scans ALL workspaces — called by the 30 s timer and immediately after
+    // every loadTasks() so a freshly-loaded (or synced) reminder is never missed.
+    function checkReminders() {
+        if (!root.workspacesData || root.workspacesData.length === 0) return
+        var now = Date.now()
+        var modified = false
+        var copy = JSON.parse(JSON.stringify(root.workspacesData))
+        copy.forEach(function(ws) {
+            (ws.tasks || []).forEach(function(t) {
+                if (!t.reminder) return
+                var ts = new Date(t.reminder).getTime()
+                if (isNaN(ts) || ts > now) return
+                var reminderDt = Qt.formatDateTime(new Date(t.reminder), "ddd, d MMM yyyy  HH:mm")
+                var body = reminderDt + (t.description ? "\n" + t.description : "")
+                root.sendReminderNotification(i18n("Reminder: %1", t.title), body)
+                t.reminder = ""
+                t.lastModified = new Date().toISOString()  // mark local as newer than Google post-PATCH
+                modified = true
+            })
+        })
+        if (modified) {
+            root.workspacesData = copy
+            plasmoid.configuration.tasks = JSON.stringify(copy)
+            root.reloadTaskModel()
+            if (plasmoid.configuration.googleEnabled
+                    && plasmoid.configuration.googleAutoSync
+                    && !googleSync.isSyncing)
+                googleSync.schedulePush()
+        }
     }
 
     // ─── Context menu (right-click on tray) ──────────────────────────────────
@@ -150,6 +207,15 @@ PlasmoidItem {
         function onPomodoroMinutesChanged()   { if (!root.isRunning && root.timerMode === "work")       root.remainingSeconds = root.modeDuration() }
         function onShortBreakMinutesChanged() { if (!root.isRunning && root.timerMode === "shortBreak") root.remainingSeconds = root.modeDuration() }
         function onLongBreakMinutesChanged()  { if (!root.isRunning && root.timerMode === "longBreak")  root.remainingSeconds = root.modeDuration() }
+        // Config page bumps this counter when a workspace is assigned to a
+        // Google Tasks list, so we reload the local state and run a full sync.
+        function onGoogleSyncRequestVersionChanged() {
+            if (!plasmoid.configuration.googleEnabled) return
+            root.loadTasks()
+            Qt.callLater(function() {
+                if (!googleSync.isSyncing) googleSync.sync()
+            })
+        }
     }
 
     Timer {
@@ -172,8 +238,21 @@ PlasmoidItem {
         }
     }
 
+    // ─── Reminder checker ─────────────────────────────────────────────────────
+    Timer {
+        id: reminderChecker
+        interval: 30000   // check every 30 s → max 30 s delay on notifications
+        repeat: true
+        running: true
+        onTriggered: root.checkReminders()
+    }
+
     // ─── Task model ───────────────────────────────────────────────────────────
     ListModel { id: taskModel }
+
+    TextMetrics {
+        id: popupTextMetrics
+    }
 
     // ─── Google Tasks sync ────────────────────────────────────────────────────
     GoogleTasksSync {
@@ -222,6 +301,7 @@ PlasmoidItem {
                         if (s.lastModified > (t.lastModified || "")) {
                             m.title = s.title; m.description = s.description
                             m.done  = s.done;  m.lastModified = s.lastModified
+                            if (s.reminder !== undefined) m.reminder = s.reminder
                         }
                         result.push(m)
                     })
@@ -255,6 +335,70 @@ PlasmoidItem {
         })
     }
 
+    function measurePopupTextWidth(text, bold, pixelSize) {
+        popupTextMetrics.font.bold = !!bold
+        popupTextMetrics.font.pixelSize = pixelSize || Kirigami.Theme.defaultFont.pixelSize
+        popupTextMetrics.text = (text && text.length > 0) ? text : " "
+        return popupTextMetrics.advanceWidth
+    }
+
+    function estimateWorkspacePopupWidth(ws) {
+        var maxTaskTitleWidth = 0
+        ;(ws.tasks || []).forEach(function(t) {
+            maxTaskTitleWidth = Math.max(
+                maxTaskTitleWidth,
+                root.measurePopupTextWidth(t.title || "", false, Kirigami.Theme.defaultFont.pixelSize)
+            )
+        })
+
+        var todoSectionMargins = Kirigami.Units.largeSpacing * 2
+        var taskRowControls = Kirigami.Units.gridUnit * 10
+        var taskRowPadding = Kirigami.Units.gridUnit * 2
+        var taskRowWidth = todoSectionMargins + taskRowControls + taskRowPadding + maxTaskTitleWidth
+
+        var headerWidth = todoSectionMargins
+                        + root.measurePopupTextWidth(i18n("Tasks"), true, Kirigami.Theme.defaultFont.pixelSize)
+                        + Kirigami.Units.gridUnit * 10
+
+        var addRowWidth = todoSectionMargins + Kirigami.Units.gridUnit * 18
+        return Math.max(root.popupBaseWidth, taskRowWidth, headerWidth, addRowWidth)
+    }
+
+    function estimateWorkspaceTaskListHeight(ws) {
+        var taskCount = (ws.tasks || []).length
+        var taskRowHeight = Kirigami.Units.gridUnit * 2.4
+        var taskSpacing = 2
+        var verticalPadding = Kirigami.Units.smallSpacing * 2
+        return verticalPadding + Math.max(0, taskCount * (taskRowHeight + taskSpacing) - taskSpacing)
+    }
+
+    function estimatePopupHeight() {
+        var baseSectionsHeight = Kirigami.Units.gridUnit * 22
+        var tallestTaskList = Kirigami.Units.gridUnit * 4
+        ;(root.workspacesData || []).forEach(function(ws) {
+            tallestTaskList = Math.max(tallestTaskList, root.estimateWorkspaceTaskListHeight(ws))
+        })
+        return Math.max(root.popupBaseHeight, baseSectionsHeight + tallestTaskList)
+    }
+
+    function lockPopupBaseWidth() {
+        if (root.popupBaseWidthLocked) return
+
+        var widest = Kirigami.Units.gridUnit * 32
+        ;(root.workspacesData || []).forEach(function(ws) {
+            widest = Math.max(widest, root.estimateWorkspacePopupWidth(ws))
+        })
+
+        root.popupBaseWidth = widest
+        root.popupBaseWidthLocked = true
+    }
+
+    function lockPopupBaseHeight() {
+        if (root.popupBaseHeightLocked) return
+        root.popupBaseHeight = root.estimatePopupHeight()
+        root.popupBaseHeightLocked = true
+    }
+
     function updateDoneCount() {
         var n = 0
         for (var i = 0; i < taskModel.count; i++)
@@ -282,6 +426,7 @@ PlasmoidItem {
                 uid:          t.uid          || "",
                 lastModified: t.lastModified || "",
                 googleTaskId: t.googleTaskId || "",
+                reminder:     t.reminder     || "",
                 expanded:     !!(t.uid && expandedUids[t.uid]),
                 editDesc:     false
             })
@@ -305,11 +450,13 @@ PlasmoidItem {
                 || prev.title       !== t.title
                 || prev.description !== t.description
                 || prev.done        !== t.done
+                || (prev.reminder || "") !== (t.reminder || "")
             tasks.push({
                 title:        t.title,
                 description:  t.description,
                 done:         t.done,
                 uid:          uid,
+                reminder:     t.reminder     || "",
                 lastModified: changed ? now : (prev && prev.lastModified || now),
                 googleTaskId: t.googleTaskId || (prev && prev.googleTaskId || "")
             })
@@ -354,8 +501,11 @@ PlasmoidItem {
         if (migrated) plasmoid.configuration.tasks = JSON.stringify(workspacesData)
 
         if (currentWorkspace >= workspacesData.length) currentWorkspace = 0
+        lockPopupBaseWidth()
+        lockPopupBaseHeight()
         reloadTaskModel()
         updateDoneCount()
+        Qt.callLater(root.checkReminders)
     }
 
     function saveTasks() {
@@ -379,6 +529,7 @@ PlasmoidItem {
             done:         false,
             uid:          root.generateUid(),
             lastModified: new Date().toISOString(),
+            reminder:     "",
             expanded:     autoExpand,
             editDesc:     autoExpand
         })
@@ -432,16 +583,31 @@ PlasmoidItem {
         readonly property bool showTimer: root.isRunning && displayMode !== "iconOnly"
         readonly property bool showIcon:  !root.isRunning || displayMode !== "timerOnly"
 
+        // Panel thickness: height on horizontal panels, width on vertical.
+        // Plasmoid.formFactor === 3 is Vertical (PlasmaCore.Types.Vertical).
+        readonly property int panelThickness: Plasmoid.formFactor === 3
+                                              ? compactRoot.width
+                                              : compactRoot.height
+        readonly property int iconSize: Math.max(
+            Kirigami.Units.iconSizes.small,
+            Math.min(Kirigami.Units.iconSizes.enormous, panelThickness)
+        )
+        readonly property int timerPixelSize: Math.max(
+            Kirigami.Units.gridUnit * 0.7,
+            Math.round(panelThickness * 0.45)
+        )
+        readonly property int dotSize: Math.max(4, Math.round(panelThickness * 0.12))
+
         TextMetrics {
             id: timerMetrics
-            font.pixelSize: Math.round(Kirigami.Units.gridUnit * 0.9)
+            font.pixelSize: compactRoot.timerPixelSize
             font.bold: true
             text: "00:00"
         }
 
         readonly property real _pad:   Kirigami.Units.smallSpacing * 2
-        readonly property real _icon:  Kirigami.Units.iconSizes.medium
-        readonly property real _dot:   6 + Kirigami.Units.smallSpacing / 2
+        readonly property real _icon:  iconSize
+        readonly property real _dot:   dotSize + Kirigami.Units.smallSpacing / 2
         readonly property real _timer: timerMetrics.advanceWidth
 
         readonly property real desiredWidth: {
@@ -473,14 +639,16 @@ PlasmoidItem {
             Kirigami.Icon {
                 visible: compactRoot.showIcon
                 source: root.currentIcon()
-                Layout.preferredWidth:  Kirigami.Units.iconSizes.medium
-                Layout.preferredHeight: Kirigami.Units.iconSizes.medium
+                Layout.preferredWidth:  compactRoot.iconSize
+                Layout.preferredHeight: compactRoot.iconSize
                 Layout.alignment: Qt.AlignVCenter
             }
 
             Rectangle {
                 visible: compactRoot.showTimer && compactRoot.showIcon
-                width: 6; height: 6; radius: 3
+                width: compactRoot.dotSize
+                height: compactRoot.dotSize
+                radius: width / 2
                 color: root.modeColor()
                 Layout.alignment: Qt.AlignVCenter
             }
@@ -490,7 +658,7 @@ PlasmoidItem {
                 text: root.formatTime(root.remainingSeconds)
                 color: root.modeColor()
                 font.bold: true
-                font.pixelSize: Math.round(Kirigami.Units.gridUnit * 0.9)
+                font.pixelSize: compactRoot.timerPixelSize
                 Layout.alignment: Qt.AlignVCenter
             }
         }
@@ -499,7 +667,12 @@ PlasmoidItem {
     // ─── Full representation (popup) ─────────────────────────────────────────
     fullRepresentation: ColumnLayout {
         id: fullRep
-        implicitWidth: Kirigami.Units.gridUnit * 32
+        implicitWidth: root.popupBaseWidth
+        implicitHeight: root.popupBaseHeight
+        Layout.minimumWidth: root.popupBaseWidth
+        Layout.preferredWidth: root.popupBaseWidth
+        Layout.minimumHeight: root.popupBaseHeight
+        Layout.preferredHeight: root.popupBaseHeight
         spacing: 0
 
         Connections {
@@ -535,6 +708,7 @@ PlasmoidItem {
         // ══ Timer section ════════════════════════════════════════════════════
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.preferredHeight: implicitHeight
             Layout.topMargin:    Kirigami.Units.largeSpacing
             Layout.leftMargin:   Kirigami.Units.largeSpacing
             Layout.rightMargin:  Kirigami.Units.largeSpacing
@@ -622,6 +796,7 @@ PlasmoidItem {
         // ══ Todo section ═════════════════════════════════════════════════════
         ColumnLayout {
             Layout.fillWidth: true
+            Layout.fillHeight: true
             Layout.margins: Kirigami.Units.largeSpacing
             spacing: Kirigami.Units.smallSpacing
 
@@ -689,6 +864,43 @@ PlasmoidItem {
                     Row {
                         id: wsTabRow
                         spacing: 2
+                        readonly property real uniformTabWidth: {
+                            var widest = 0
+                            for (var i = 0; i < tabWidthRepeater.count; i++) {
+                                widest = Math.max(widest, tabWidthRepeater.itemAt(i).requiredWidth)
+                            }
+                            return widest
+                        }
+
+                        Repeater {
+                            id: tabWidthRepeater
+                            model: root.workspacesData.length
+
+                            Item {
+                                readonly property real requiredWidth:
+                                    Math.max(tabWidthMetrics.advanceWidth, boldTabWidthMetrics.advanceWidth)
+                                    + Kirigami.Units.smallSpacing * 2
+
+                                TextMetrics {
+                                    id: tabWidthMetrics
+                                    font.family: Kirigami.Theme.defaultFont.family
+                                    font.pixelSize: Kirigami.Theme.defaultFont.pixelSize
+                                    font.italic: Kirigami.Theme.defaultFont.italic
+                                    text: root.workspacesData[index]
+                                          ? root.workspacesData[index].name : ""
+                                }
+
+                                TextMetrics {
+                                    id: boldTabWidthMetrics
+                                    font.family: Kirigami.Theme.defaultFont.family
+                                    font.pixelSize: Kirigami.Theme.defaultFont.pixelSize
+                                    font.italic: Kirigami.Theme.defaultFont.italic
+                                    font.weight: Font.Bold
+                                    text: root.workspacesData[index]
+                                          ? root.workspacesData[index].name : ""
+                                }
+                            }
+                        }
 
                         Repeater {
                             model: root.workspacesData.length
@@ -697,37 +909,93 @@ PlasmoidItem {
                                 id: wsTabDelegate
                                 readonly property bool isActive: index === root.currentWorkspace
                                 property bool editingName: false
+                                readonly property real reservedLabelWidth:
+                                    Math.max(tabLabelMetrics.advanceWidth, tabLabelBoldMetrics.advanceWidth)
+                                readonly property color tabBorderColor:
+                                    Qt.rgba(Kirigami.Theme.textColor.r,
+                                            Kirigami.Theme.textColor.g,
+                                            Kirigami.Theme.textColor.b, 0.22)
+                                readonly property color tabFillColor:
+                                    wsTabDelegate.isActive
+                                        ? Qt.rgba(Kirigami.Theme.backgroundColor.r,
+                                                  Kirigami.Theme.backgroundColor.g,
+                                                  Kirigami.Theme.backgroundColor.b, 0.16)
+                                        : Qt.rgba(Kirigami.Theme.backgroundColor.r,
+                                                  Kirigami.Theme.backgroundColor.g,
+                                                  Kirigami.Theme.backgroundColor.b, 0.06)
 
                                 // Fixed height across all tabs so the Row stays on one line
                                 implicitHeight: Kirigami.Units.iconSizes.small
                                                 + Kirigami.Units.smallSpacing * 4
-                                implicitWidth:  tabInner.implicitWidth + Kirigami.Units.smallSpacing * 2
+                                implicitWidth:  wsTabRow.uniformTabWidth
 
-                                // Active underline indicator
+                                TextMetrics {
+                                    id: tabLabelMetrics
+                                    font.family: tabLabel.font.family
+                                    font.pixelSize: tabLabel.font.pixelSize
+                                    font.weight: tabLabel.font.weight
+                                    font.italic: tabLabel.font.italic
+                                    text: root.workspacesData[index]
+                                          ? root.workspacesData[index].name : ""
+                                }
+
+                                TextMetrics {
+                                    id: tabLabelBoldMetrics
+                                    font.family: tabLabel.font.family
+                                    font.pixelSize: tabLabel.font.pixelSize
+                                    font.italic: tabLabel.font.italic
+                                    font.weight: Font.Bold
+                                    text: root.workspacesData[index]
+                                          ? root.workspacesData[index].name : ""
+                                }
+
                                 Rectangle {
+                                    anchors.fill: parent
+                                    anchors.bottomMargin: wsTabDelegate.isActive ? 0 : 1
+                                    radius: 3
+                                    color: wsTabDelegate.tabFillColor
+                                    border.width: 1
+                                    border.color: wsTabDelegate.isActive
+                                                  ? Kirigami.Theme.highlightColor
+                                                  : wsTabDelegate.tabBorderColor
+                                }
+
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
                                     anchors.bottom: parent.bottom
-                                    anchors.left:   parent.left
-                                    anchors.right:  parent.right
+                                    height: 1
+                                    color: wsTabDelegate.isActive
+                                           ? Kirigami.Theme.backgroundColor
+                                           : "transparent"
+                                }
+
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
                                     height: 2
-                                    radius: 1
-                                    color: Kirigami.Theme.highlightColor
                                     visible: wsTabDelegate.isActive
+                                    color: Kirigami.Theme.highlightColor
                                 }
 
                                 RowLayout {
                                     id: tabInner
                                     anchors.centerIn: parent
-                                    spacing: 2
+                                    spacing: 0
 
                                     // Workspace name label
                                     PlasmaComponents3.Label {
+                                        id: tabLabel
                                         visible: !wsTabDelegate.editingName
+                                        Layout.preferredWidth: wsTabDelegate.reservedLabelWidth
                                         text: root.workspacesData[index]
                                               ? root.workspacesData[index].name : ""
                                         color: wsTabDelegate.isActive
                                                ? Kirigami.Theme.highlightColor
                                                : Kirigami.Theme.textColor
                                         font.bold: wsTabDelegate.isActive
+                                        opacity: wsTabDelegate.isActive ? 1.0 : 0.9
                                     }
 
                                     // Inline rename TextField
@@ -752,43 +1020,46 @@ PlasmoidItem {
                                             wsTabDelegate.editingName = false
                                         }
                                     }
+                                }
 
-                                    // Pencil: rename (active, not editing)
-                                    PlasmaComponents3.ToolButton {
-                                        visible: wsTabDelegate.isActive && !wsTabDelegate.editingName
-                                        flat: true
-                                        icon.name: "document-edit"
-                                        implicitWidth:  Kirigami.Units.iconSizes.small + Kirigami.Units.smallSpacing * 2
-                                        implicitHeight: implicitWidth
-                                        onClicked: {
+                                QQC2.Menu {
+                                    id: wsTabContextMenu
+
+                                    QQC2.MenuItem {
+                                        text: i18n("Rename workspace")
+                                        onTriggered: {
+                                            if (!wsTabDelegate.isActive)
+                                                root.switchWorkspace(index)
                                             wsTabDelegate.editingName = true
                                             Qt.callLater(function() {
                                                 wsNameField.forceActiveFocus()
                                                 wsNameField.selectAll()
                                             })
                                         }
-                                        QQC2.ToolTip.text: i18n("Rename workspace")
-                                        QQC2.ToolTip.visible: hovered
                                     }
 
-                                    // Trash: delete (active, >1 workspace, not editing)
-                                    PlasmaComponents3.ToolButton {
-                                        visible: wsTabDelegate.isActive
-                                                 && root.workspacesData.length > 1
-                                                 && !wsTabDelegate.editingName
-                                        flat: true
-                                        icon.name: "edit-delete-remove"
-                                        implicitWidth:  Kirigami.Units.iconSizes.small + Kirigami.Units.smallSpacing * 2
-                                        implicitHeight: implicitWidth
-                                        onClicked: deleteWsDialog.open()
-                                        QQC2.ToolTip.text: i18n("Delete workspace")
-                                        QQC2.ToolTip.visible: hovered
+                                    QQC2.MenuItem {
+                                        text: i18n("Delete workspace")
+                                        enabled: root.workspacesData.length > 1
+                                        onTriggered: {
+                                            if (!wsTabDelegate.isActive)
+                                                root.switchWorkspace(index)
+                                            deleteWsDialog.open()
+                                        }
                                     }
                                 }
 
                                 TapHandler {
-                                    enabled: !wsTabDelegate.isActive
-                                    onTapped: root.switchWorkspace(index)
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    gesturePolicy: TapHandler.ReleaseWithinBounds
+                                    onTapped: function(eventPoint, button) {
+                                        if (button === Qt.RightButton) {
+                                            wsTabContextMenu.popup()
+                                            return
+                                        }
+                                        if (!wsTabDelegate.isActive)
+                                            root.switchWorkspace(index)
+                                    }
                                 }
                                 HoverHandler {
                                     cursorShape: wsTabDelegate.isActive
@@ -909,9 +1180,12 @@ PlasmoidItem {
             QQC2.ScrollView {
                 id: taskScroll
                 Layout.fillWidth: true
-                Layout.preferredHeight: Math.min(
-                    taskListView.contentHeight,
-                    Kirigami.Units.gridUnit * 16
+                Layout.fillHeight: true
+                Layout.minimumHeight: Kirigami.Units.gridUnit * 4
+                Layout.preferredHeight: Math.max(
+                    Kirigami.Units.gridUnit * 4,
+                    root.popupBaseHeight
+                    - (Kirigami.Units.gridUnit * 22)
                 )
                 clip: true
                 QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
@@ -928,6 +1202,7 @@ PlasmoidItem {
                         taskDescription: model.description
                         taskDone:        model.done
                         taskExpanded:    model.expanded
+                        taskReminder:    model.reminder || ""
 
                         // Auto-focus description on newly added tasks when config enabled
                         Component.onCompleted: {
@@ -957,6 +1232,10 @@ PlasmoidItem {
                         }
                         onRemoveRequested: {
                             taskModel.remove(index)
+                            root.saveTasks()
+                        }
+                        onReminderSet: function(isoDatetime) {
+                            taskModel.setProperty(index, "reminder", isoDatetime)
                             root.saveTasks()
                         }
                         onEditingStarted: root.activeEdits++

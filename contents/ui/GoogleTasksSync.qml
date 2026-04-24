@@ -234,7 +234,13 @@ Item {
                     var remUpd = r.updated        || ""
                     var locMod = t.lastModified   || ""
                     if (remUpd > locMod) {
-                        // Remote newer → pull
+                        // Remote newer → pull title/description/done only.
+                        // Never touch local reminder: Google Tasks stores only
+                        // a date (no time), so round-tripping would clobber the
+                        // user's chosen time (e.g. 04:30 becomes 09:00, or is
+                        // wiped entirely if the fake 09:00 has already passed).
+                        // Reminders are a local-only concern — the user sets
+                        // them in the plasmoid and only the plasmoid fires them.
                         var pulled = JSON.parse(JSON.stringify(t))
                         pulled.title        = r.title  || ""
                         pulled.description  = r.notes  || ""
@@ -260,13 +266,19 @@ Item {
                 } else {
                     // New from Google → pull
                     var r = remoteMap[id]
+                    var newReminder = ""
+                    if (r.due) {
+                        var nd = new Date(r.due.substring(0, 10) + "T09:00:00")
+                        newReminder = nd.toISOString()
+                    }
                     updatedTasks.push({
                         title:        r.title  || "",
                         description:  r.notes  || "",
                         done:         r.status === "completed",
                         uid:          _uid(),
                         lastModified: r.updated || new Date().toISOString(),
-                        googleTaskId: r.id
+                        googleTaskId: r.id,
+                        reminder:     newReminder
                     })
                 }
             })
@@ -364,11 +376,10 @@ Item {
             callback(xhr.status === 200 || xhr.status === 201, d.id || "")
         }
         xhr.ontimeout = function() { callback(false, "") }
-        xhr.send(JSON.stringify({
-            title:  task.title       || "",
-            notes:  task.description || "",
-            status: task.done ? "completed" : "needsAction"
-        }))
+        var body = { title: task.title || "", notes: task.description || "",
+                     status: task.done ? "completed" : "needsAction" }
+        if (task.reminder) body.due = task.reminder.substring(0, 10) + "T00:00:00.000Z"
+        xhr.send(JSON.stringify(body))
     }
 
     function _updateTask(listId, googleId, task, callback) {
@@ -384,12 +395,12 @@ Item {
             callback()
         }
         xhr.ontimeout = function() { callback() }
-        xhr.send(JSON.stringify({
-            id:     googleId,
-            title:  task.title       || "",
-            notes:  task.description || "",
-            status: task.done ? "completed" : "needsAction"
-        }))
+        var body = { id: googleId, title: task.title || "", notes: task.description || "",
+                     status: task.done ? "completed" : "needsAction",
+                     due: task.reminder
+                         ? task.reminder.substring(0, 10) + "T00:00:00.000Z"
+                         : null }   // null explicitly clears the due field on Google's side
+        xhr.send(JSON.stringify(body))
     }
 
     function _deleteTask(listId, googleId, callback) {

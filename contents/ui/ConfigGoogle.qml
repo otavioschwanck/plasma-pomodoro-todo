@@ -217,8 +217,15 @@ Item {
         var data = []
         try { data = JSON.parse(plasmoid.configuration.tasks) } catch(e) {}
         if (wsIdx >= 0 && wsIdx < data.length) {
+            var prev = data[wsIdx].googleTaskListId || ""
             data[wsIdx].googleTaskListId = listId
             plasmoid.configuration.tasks = JSON.stringify(data)
+            // When a list is (re)assigned, ask main.qml to run a full sync
+            // so local tasks are pushed and remote tasks pulled immediately.
+            if (listId && listId !== prev) {
+                plasmoid.configuration.googleSyncRequestVersion =
+                    (plasmoid.configuration.googleSyncRequestVersion || 0) + 1
+            }
         }
     }
 
